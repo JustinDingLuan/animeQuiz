@@ -1,0 +1,11 @@
+*.env
+*.env.local
+/dist
+*.html
+*.csv
+*.xlsx
+*.config
+*.container
+/node_modules
+*.json
+*.config.js
