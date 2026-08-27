@@ -1,9 +1,9 @@
 import express from 'express';
-import { supabaseAdmin } from './databaseAdmin.js';
 import {
   checkQuizAnswer,
   createQuizSession,
   revealNextHint,
+  nextQuestion
 } from './quizSession.js';
 
 const app = express();
@@ -106,6 +106,33 @@ app.post(
   }
 );
 
+app.post(
+  '/api/quiz-session/:sessionId/next-question',
+  async (request, response) => {
+    const { sessionId } = request.params;
+
+    if (!sessionId) {
+      return response.status(400).json({
+        message: '缺少 sessionId',
+      });
+    }
+    
+    try {
+      const result = await nextQuestion(sessionId); 
+      return response.status(200).json(result);
+    }
+    catch (error) {
+      console.error(
+        '取得下一個題目失敗：',
+        error
+      );
+
+      return response.status(500).json({
+        message: '取得下一個題目失敗',
+      }); 
+    }
+  }
+);
 
 app.listen(3000, '0.0.0.0', () => {
    console.log(

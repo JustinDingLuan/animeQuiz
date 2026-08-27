@@ -87,15 +87,15 @@ export async function createQuizSession(questionType, questionCount) {
    }   
       
    return {
-      sessionId: session.id,
-      questionCount: questionCount,
+      session_id: session.id,
+      question_count: questionCount,
       // 給前端用的
-      currentQuestion: {
-         questionId: firstQuestion.id,
-         questionOrder: 1,
+      current_question: {
+         question_id: firstQuestion.id,
+         question_order: 1,
          hint: {
-            order: firstHint.hint_order,
-            text: firstHint.hint_text,
+            hint_order: firstHint.hint_order,
+            hint_text: firstHint.hint_text,
          },
          hints_revealed: 1,
          available_score: 500,
@@ -138,12 +138,12 @@ export async function revealNextHint(sessionId) {
 
    // 這裡不會有問題嗎?
    // 需要用 rpc 確保 atomic 的操作嗎?
-   const next_hint_order = sessionQuestions.hints_revealed + 1;
+   const nextHintOrder = sessionQuestions.hints_revealed + 1;
    const {data: nextHint, error: nextHintError} = await supabaseAdmin
    .from('question_hints')
    .select('id, hint_order, hint_text')
    .eq('question_id', sessionQuestions.question_id)
-   .eq('hint_order', next_hint_order)
+   .eq('hint_order', nextHintOrder)
    .single();
 
    if (nextHintError) {
@@ -157,12 +157,12 @@ export async function revealNextHint(sessionId) {
    }
    
    // 揭露提示後，可以拿到的總分變少  
-   const new_score = Math.max(100, 600 - next_hint_order * 100);
+   const newScore = Math.max(100, 600 - nextHintOrder * 100);
 
    // 更新資料庫裡面關於 question 的紀錄
    const {data: updatedQuestion, error: updateQuestionError} = await supabaseAdmin
       .from('quiz_session_questions')
-      .update({ hints_revealed: next_hint_order, score: new_score })
+      .update({ hints_revealed: nextHintOrder, score: newScore })
       .eq('session_id', sessionQuestions.session_id)
       .eq('question_id', sessionQuestions.question_id)
       .eq('hints_revealed', sessionQuestions.hints_revealed) // 確保沒有 race condition
@@ -187,12 +187,12 @@ export async function revealNextHint(sessionId) {
 
    return {
       hint: {
-         order: nextHint.hint_order,
-         text: nextHint.hint_text,
+         hint_order: nextHint.hint_order,
+         hint_text: nextHint.hint_text,
       },
-      hints_revealed: next_hint_order,
-      available_score: new_score,
-      has_next_hint: next_hint_order < 5,
+      hints_revealed: nextHintOrder,
+      available_score: newScore,
+      has_next_hint: nextHintOrder < 5,
    }   
 }
 
@@ -224,6 +224,7 @@ export async function checkQuizAnswer(sessionId, userAnswer) {
    // 已經答對的題目不能重複取得分數。
    if (sessionQuestions.is_correct === true) {
       return {
+         question_order: sessionQuestions.question_order,
          is_correct: true,
          score: sessionQuestions.score,
          available_score: sessionQuestions.score,
@@ -232,14 +233,14 @@ export async function checkQuizAnswer(sessionId, userAnswer) {
    }
 
    // quizAnswer.js 只負責依 question_id 比對角色名稱與 aliases。
-   const is_correct = await checkAnswer(sessionQuestions.question_id, userAnswer);
+   const isCorrect = await checkAnswer(sessionQuestions.question_id, userAnswer);
 
    // 好像不用 update score，因為在揭露提示的時候就已經更新 score 了
    const {data: updatedQuestion, error: updateQuestionError} = await supabaseAdmin
       .from('quiz_session_questions')
       .update({
          user_answer: userAnswer.trim(),
-         is_correct: is_correct,
+         is_correct: isCorrect,
       })
       .eq('session_id', sessionQuestions.session_id)
       .eq('question_id', sessionQuestions.question_id)
@@ -261,11 +262,160 @@ export async function checkQuizAnswer(sessionId, userAnswer) {
    }
 
    return {
+      question_order: sessionQuestions.question_order,
       is_correct: updatedQuestion.is_correct,
       score: updatedQuestion.is_correct
          ? updatedQuestion.score
          : 0,
       available_score: updatedQuestion.score,
       already_answered: false,
+
+   };
+}
+
+
+export async function nextQuestion(sessionId) {
+   const {data: currentQuestion, error: currentQuestionError} = await supabaseAdmin
+      .from('quiz_session_questions')
+      .select(`
+         session_id,
+         question_id,
+         question_order,
+         hints_revealed,
+         status,
+         score
+      `)
+      .eq('session_id', sessionId)
+      .eq('status', 'active')
+      .single();
+   
+   const {data: currentSession, error: currentSessionError} = await supabaseAdmin
+      .from('quiz_sessions')
+      .select('question_count')
+      .eq('id', sessionId)
+      .single();
+   
+   if (currentQuestion.question_order === currentSession.question_count) {
+      // 如果是最後一題，跳到結算畫面
+      // todo
+      return null;
+   }
+
+   if (currentQuestionError) {
+      console.error('取得進行中的題目失敗：', currentQuestionError);
+      throw currentQuestionError;
+   }
+
+   if (!currentQuestion) {
+      console.error('找不到進行中的題目');
+      throw new Error('找不到進行中的題目');
+   }
+
+   // 更新目前題目的狀態為 answered
+   const {data: updatedCurrentQuestion, error: updateCurrentQuestionError} = await supabaseAdmin
+      .from('quiz_session_questions')
+      .update({ status: 'answered' })
+      .eq('session_id', currentQuestion.session_id)
+      .eq('question_id', currentQuestion.question_id)
+      .eq('status', 'active')
+      .select()
+      .single();
+
+   if (updateCurrentQuestionError) {
+      console.error('更新目前題目狀態失敗：', updateCurrentQuestionError);
+      throw updateCurrentQuestionError;
+   }
+
+   // 好像沒有需要嗎? 不知道顯示分數由前端處理會怎樣?
+   const {data: totalScore, error: currentScoreError} = await supabaseAdmin
+      .from('quiz_session_questions')
+      .select('score')
+      .eq('session_id', sessionId)      
+      .eq('status', 'answered')
+      .eq('is_correct', true);
+
+   if (currentScoreError) {
+      console.error('取得目前總分失敗：', currentScoreError);
+      throw currentScoreError;
+   }
+
+   const currentTotalScore = totalScore.reduce((sum, item) => sum + item.score, 0);
+
+   const nextQuestionOrder = currentQuestion.question_order + 1;
+   const {data: nextQuestion, error: nextQuestionError} = await supabaseAdmin
+      .from('quiz_session_questions')
+      .select(`
+         session_id,
+         question_id,
+         question_order,
+         hints_revealed,
+         status,
+         score
+      `)
+      .eq('session_id', sessionId)
+      .eq('question_order', nextQuestionOrder)
+      .single();
+   
+   if (nextQuestionError) {
+      console.error('取得下一題失敗：', nextQuestionError);
+      throw nextQuestionError;
+   }
+
+   if (!nextQuestion) {
+      console.error('找不到下一題');
+      throw new Error('找不到下一題');
+   }
+
+   // 有下一題 => 先拿下一題的第一個提示
+   const {data: firstHint, error: firstHintError} = await supabaseAdmin
+      .from('question_hints')
+      .select('id, hint_order, hint_text')
+      .eq('question_id', nextQuestion.question_id)
+      .order('hint_order', { ascending: true })
+      .limit(1)
+      .single();
+
+   if (firstHintError) {
+      console.error('取得下一題的第一個提示失敗：', firstHintError);
+      throw firstHintError;
+   }
+
+   // 更新下一題的狀態為 active
+   const {data: updatedNextQuestion, error: updateNextQuestionError} = await supabaseAdmin
+      .from('quiz_session_questions')
+      .update({ status: 'active', hints_revealed: 1 })
+      .eq('session_id', nextQuestion.session_id)
+      .eq('question_id', nextQuestion.question_id)
+      .eq('status', 'pending')
+      .select()
+      .single();
+
+   if (updateNextQuestionError) {
+      console.error('更新下一題狀態失敗：', updateNextQuestionError);
+      throw updateNextQuestionError;
+   }
+
+   const {error: updateActivityError} = await supabaseAdmin
+      .from('quiz_sessions')
+      .update({last_activity: new Date().toISOString()})
+      .eq('id', sessionId);
+      
+   if (updateActivityError) {
+      console.error('更新最後互動時間失敗：', updateActivityError);
+      throw updateActivityError;
+   }
+
+   return {
+      current_total_score: currentTotalScore,
+      current_question: {
+         question_id: nextQuestion.question_id,
+         question_order: nextQuestion.question_order,
+         hint: {
+            hint_order: firstHint.hint_order,
+            hint_text: firstHint.hint_text,
+         },
+         hints_revealed: 1,
+         available_score: nextQuestion.score,
+      }
    };
 }

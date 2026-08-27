@@ -19,13 +19,13 @@ async function checkCharacterAnswer(questionId, userAnswer) {
       throw relationError;
    }
 
-   const {data: character, error:error} = await supabaseAdmin.from('characters')
+   const {data: character, error: characterError} = await supabaseAdmin.from('characters')
    .select('display_name, aliases')
    .eq('id', groundTruth.character_id)
    .single();
 
-   if (error) {
-      throw error;
+   if (characterError) {
+      throw characterError;
    }
 
    const normalizedUserAnswer = normalizeAnswer(userAnswer);

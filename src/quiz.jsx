@@ -44,47 +44,63 @@ const quizState = {
   currentScore: 0,
 };
 
-async function requestQuizSession(questionType, questionCount) {
-  const response = await fetch('/api/create-quiz-session', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      questionType,
-      questionCount,
-    }),
-  });
 
-  const result = await response.json();
-  if (!response.ok) {
-    throw new Error(`建立測驗失敗：${result?.message || response.statusText}`);
+async function apiRequest(url, {method = 'GET', body, headers={}} = {}) {
+  const requestOptions = {
+    method,
+    headers: {
+      ...headers,
+    },
+  };
+
+  if (body !== undefined) {
+    requestOptions.body = JSON.stringify(body);
+    requestOptions.headers['Content-Type'] = 'application/json';
   }
 
-  return result
+  const response = await fetch(url, requestOptions);
+  const result = await response.json();
+
+  if (!response.ok) {
+    throw new Error(result?.message || response.statusText);
+  }
+
+  return result;
+}
+
+async function requestQuizSession(questionType, questionCount) {  
+  const result = await apiRequest('/api/create-quiz-session', {
+    method: 'POST',
+    body: {
+      questionType,
+      questionCount,
+    },
+  });
+
+  return result;
 }
 
 async function startQuiz(questionType, questionCount) {
   try {
     // 看 quiz_session.js 的 createQuizSession
-    // 裡面有 session_id, questionCount, currentQuestion
+    // 裡面有 session_id、question_count、current_question
     const session = await requestQuizSession(questionType, questionCount);
     // quizElements.status.textContent = '測驗開始！';
 
-    quizState.sessionId = session.sessionId;
+    quizState.sessionId = session.session_id;
     quizState.questionCount = questionCount;
 
-    const currentQuestion = session.currentQuestion;
+    const currentQuestion = session.current_question;
     quizState.question = currentQuestion;    
     quizState.visibleHintCount = 1;
     quizState.answered = false;
     // browser 提供的原生 web storage，不用 import 任何東西
-    sessionStorage.setItem('quizSessionId', session.sessionId);
+    sessionStorage.setItem('quizSessionId', session.session_id);
     // 清空 list，避免裡面有甚麼奇怪的初始內容
     quizElements.hintList.replaceChildren();
 
     const hint = document.createElement('li');
-    hint.textContent = currentQuestion.hint.text;
+    hint.textContent = currentQuestion.hint.hint_text;
     quizElements.hintList.appendChild(hint);
     quizElements.hintCount.textContent = String(currentQuestion.hints_revealed);
 
@@ -92,7 +108,7 @@ async function startQuiz(questionType, questionCount) {
     quizElements.answerInput.value = '';
     quizElements.answerInput.disabled = false;
     quizElements.quizResult.textContent = '';
-    quizElements.content.hidden = false;    
+    quizElements.content.hidden = false;
   } 
   catch (error) {    
     console.error('建立測驗失敗：', error);
@@ -187,20 +203,10 @@ async function startQuiz(questionType, questionCount) {
 // }
 
 async function requestNextHint(sessionId) {
-  const response = await fetch(
-    `/api/quiz-session/${sessionId}/reveal-next-hint`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    }
-  );
-
-  const result = await response.json();
-  if (!response.ok) {
-    throw new Error(`取得下一個提示失敗：${result?.message || response.statusText}`);
-  }
+  const encodedSessionId = encodeURIComponent(sessionId);
+  const result = await apiRequest(`/api/quiz-session/${encodedSessionId}/reveal-next-hint`, {
+    method: 'POST',
+  });
 
   return result;
 }
@@ -216,11 +222,11 @@ async function showNextHint() {
     const result = await requestNextHint(quizState.sessionId);
     if (!result.hint) {
       quizElements.status.textContent = '沒有更多提示了';
-      return;      
+      return;
     }
     
     const listItem = document.createElement('li');
-    listItem.textContent = result.hint.text;
+    listItem.textContent = result.hint.hint_text;
     quizElements.hintList.appendChild(listItem);
     quizState.visibleHintCount = result.hints_revealed;
     quizElements.hintCount.textContent = String(result.hints_revealed);
@@ -237,25 +243,11 @@ async function showNextHint() {
 }
 
 async function requestCheckAnswer(sessionId, userAnswer) {
-  const response = await fetch(
-    `/api/quiz-session/${sessionId}/check-quiz-answer`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({userAnswer}),
-    }
-  );
-
-  const result = await response.json();
-
-  if (!response.ok) {
-    throw new Error(
-      result?.message || '檢查答案失敗'
-    );
-  }
-
+  const encodedSessionId = encodeURIComponent(sessionId);
+  const result = await apiRequest(`/api/quiz-session/${encodedSessionId}/check-quiz-answer`, {
+    method: 'POST',
+    body: {userAnswer}
+  });
   return result;
 }
 
@@ -280,6 +272,7 @@ async function submitQuizAnswer(event) {
       quizState.answered = true;
       quizState.currentScore += result.score;
       // 這邊應該要把下一題帶上來?
+      // 不用，等按下下一題的時候才要帶上來
       quizElements.progress.textContent = 
       `第${quizState.question.question_order}題 / 共${quizState.questionCount}題, 
       目前分數: ${quizState.currentScore}`;
@@ -301,6 +294,57 @@ async function submitQuizAnswer(event) {
   }  
 }
 
+async function requestNextQuestion(sessionId) {
+  const encodedSessionId = encodeURIComponent(sessionId);
+  const result = await apiRequest(`/api/quiz-session/${encodedSessionId}/next-question`, {
+    method: 'POST',
+  });
+
+  return result;
+}
+
+async function nextQuestion() {
+  if (!quizState.sessionId) {
+    return;
+  }
+
+  quizElements.nextQuestionButton.disabled = true;
+  try {
+    const result = await requestNextQuestion(quizState.sessionId);
+    if (!result.current_question) {
+      quizElements.status.textContent = '已經沒有下一題了';
+      return;
+    }
+    // 把所有內容都換成下一題，並重置必要內容: 使用者輸入、hint 數量、hint list
+    quizState.question = result.current_question;
+    quizState.visibleHintCount = 1;
+    quizState.answered = false;
+
+    // 直接清空 list，避免裡面有甚麼奇怪的初始內容
+    quizElements.hintList.replaceChildren();
+    const hint = document.createElement('li');
+    hint.textContent = result.current_question.hint.hint_text;
+    quizElements.hintList.appendChild(hint);
+
+    quizElements.hintCount.textContent = String(result.current_question.hints_revealed);
+    quizElements.progress.textContent =
+      `第${quizState.question.question_order}題 / 共${quizState.questionCount}題, 目前分數: ${quizState.currentScore}`;
+
+    quizElements.answerInput.value = '';
+    quizElements.nextHintButton.disabled = false;
+    quizElements.nextQuestionButton.hidden = true;    
+    quizElements.answerInput.disabled = false;
+
+  }
+  catch (error) {
+    console.error('取得下一題失敗：', error);
+    quizElements.status.textContent = `取得下一題失敗：${error.message}`;
+  }
+  finally {
+    quizElements.nextQuestionButton.disabled = false;
+  }
+}
+
 export function initQuiz(questionType, questionCount) {
   quizElements.nextHintButton.addEventListener(
     'click',
@@ -310,6 +354,11 @@ export function initQuiz(questionType, questionCount) {
   quizElements.answerForm.addEventListener(
     'submit',
     submitQuizAnswer
+  );
+
+  quizElements.nextQuestionButton.addEventListener(
+    'click',
+    nextQuestion
   );
 
   startQuiz(questionType, questionCount);

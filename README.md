@@ -14,3 +14,6 @@
 把建立 session 的部分寫好了，但 next hint 跟 check answer 的部分還沒寫完
 有成功把 session 的內容存到 database 裡面，後續應該要再處理如果使用者中間把頁面關掉的狀況?
 
+## 20260827
+寫完 next hint 跟 check answer 的部分，並且可以成功帶入下一題
+接下來就是在 nextQuestion 的地方判斷，如果已經是最後一題，就要跳到結算畫面去
