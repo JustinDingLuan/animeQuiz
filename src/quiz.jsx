@@ -2,13 +2,6 @@ import './styles.css';
 import { supabase } from './supabase.js';
 
 const quizElements = {
-  // drawQuestionButton:
-  //   document.querySelector('#draw-question-button'),
-  
-  // setupForm:
-  //   document.querySelector('#quiz-setup-form'),
-
-  
   status:
   document.querySelector('#quiz-status'),
   
@@ -34,9 +27,10 @@ const quizElements = {
   document.querySelector('#quiz-result'), 
   
   progress:
-    document.querySelector('#quiz-progress'),
+  document.querySelector('#quiz-progress'),
+
   nextQuestionButton:
-    document.querySelector('#next-question-button'),
+  document.querySelector('#next-question-button'),
 };
 
 const quizState = {
@@ -47,10 +41,11 @@ const quizState = {
   answered: false,
 
   questionCount: 0,
+  currentScore: 0,
 };
 
 async function requestQuizSession(questionType, questionCount) {
-  const response = await fetch('/api/quiz-session', {
+  const response = await fetch('/api/create-quiz-session', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -74,7 +69,7 @@ async function startQuiz(questionType, questionCount) {
     // 看 quiz_session.js 的 createQuizSession
     // 裡面有 session_id, questionCount, currentQuestion
     const session = await requestQuizSession(questionType, questionCount);
-    quizElements.status.textContent = '測驗開始！';
+    // quizElements.status.textContent = '測驗開始！';
 
     quizState.sessionId = session.sessionId;
     quizState.questionCount = questionCount;
@@ -93,21 +88,15 @@ async function startQuiz(questionType, questionCount) {
     quizElements.hintList.appendChild(hint);
     quizElements.hintCount.textContent = String(currentQuestion.hints_revealed);
 
-    quizElements.progress.textContent = `第一題 / ${questionCount}`;
+    quizElements.progress.textContent = `第1題 / 共${questionCount}題, 目前分數: ${quizState.currentScore}`;
     quizElements.answerInput.value = '';
     quizElements.answerInput.disabled = false;
     quizElements.quizResult.textContent = '';
-    quizElements.content.hidden = false;
-    // 暫時先不讓使用者點，api 尚未建立完成?
-    quizElements.nextHintButton.disabled = true;
-
+    quizElements.content.hidden = false;    
   } 
   catch (error) {    
     console.error('建立測驗失敗：', error);
   }
-
-
-
 }  
 // async function fiveHintQuestion() {
 //   // 確認題目有幾題?
@@ -197,108 +186,112 @@ async function startQuiz(questionType, questionCount) {
 //   }
 // }
 
-function renderQuizHints() {
-  quizElements.hintList.replaceChildren();
-
-  const hints =
-    quizState.question.question_hints;
-
-  const visibleHints = hints.slice(
-    0,
-    quizState.visibleHintCount
+async function requestNextHint(sessionId) {
+  const response = await fetch(
+    `/api/quiz-session/${sessionId}/reveal-next-hint`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    }
   );
 
-  for (const hint of visibleHints) {
-    const listItem =
-      document.createElement('li');
-
-    listItem.textContent = hint.hint_text;
-
-    quizElements.hintList.appendChild(listItem);
-  }
-
-  quizElements.hintCount.textContent =
-    String(quizState.visibleHintCount);
-
-  quizElements.nextHintButton.disabled =
-    quizState.visibleHintCount >= hints.length;
-}
-
-function showNextHint() {
-  if (!quizState.question || quizState.answered) {
-    return;
-  }
-
-  const hints =
-    quizState.question.question_hints;
-
-  if (
-    quizState.visibleHintCount >= hints.length
-  ) {
-    return;
-  }
-
-  quizState.visibleHintCount += 1;
-
-  renderQuizHints();
-}
-
-async function checkAnswer(question_id, userAnswer) {
-  // const { data, error } = await supabase.rpc(
-  //   'check_question_answer',
-  //   {
-  //     p_question_id: question_id,
-  //     p_user_answer: userAnswer,
-  //   }
-  // );
-
-  // 把 question_id 跟 userAnswer 用 https 的 post method送到後端的 /api/check-answer 來檢查答案
-  const response = await fetch('/api/check-answer', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      questionId: question_id,
-      userAnswer: userAnswer,
-    }),
-  });
-
-  
-  const { is_correct } = await response.json();
-  
+  const result = await response.json();
   if (!response.ok) {
-    throw new Error(`檢查答案失敗：${is_correct?.message || response.statusText}`);
+    throw new Error(`取得下一個提示失敗：${result?.message || response.statusText}`);
   }
-  
-  return is_correct === true;
+
+  return result;
+}
+
+async function showNextHint() {
+  // 應該設計成可以讓使用者一直回答? 先不放 quizState.answered 的判斷
+  if (!quizState.sessionId || !quizState.question) {
+    return;
+  }
+
+  quizElements.nextHintButton.disabled = true;
+  try {
+    const result = await requestNextHint(quizState.sessionId);
+    if (!result.hint) {
+      quizElements.status.textContent = '沒有更多提示了';
+      return;      
+    }
+    
+    const listItem = document.createElement('li');
+    listItem.textContent = result.hint.text;
+    quizElements.hintList.appendChild(listItem);
+    quizState.visibleHintCount = result.hints_revealed;
+    quizElements.hintCount.textContent = String(result.hints_revealed);
+
+    // 如果已經沒有提示可用了，把按鈕 disable 掉
+    quizElements.nextHintButton.disabled = !result.has_next_hint;
+  }
+  catch (error) {
+    console.error('取得下一個提示失敗：', error);
+    quizElements.status.textContent = `取得下一個提示失敗：${error.message}`;
+    // 一般請求錯誤時允許使用者重試。
+    quizElements.nextHintButton.disabled = false;
+  }
+}
+
+async function requestCheckAnswer(sessionId, userAnswer) {
+  const response = await fetch(
+    `/api/quiz-session/${sessionId}/check-quiz-answer`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({userAnswer}),
+    }
+  );
+
+  const result = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      result?.message || '檢查答案失敗'
+    );
+  }
+
+  return result;
 }
 
 async function submitQuizAnswer(event) {
   event.preventDefault();
   const userAnswer =
-    quizElements.answerInput.value;
+    quizElements.answerInput.value.trim();
 
-  if (!quizState.question || quizState.answered) {
+  if (
+    !quizState.sessionId ||
+    !quizState.question ||
+    quizState.answered ||
+    !userAnswer
+  ) {
     return;
   }
-
-  console.log({
-    questionId: quizState.question.id,
-    userAnswer,
-  });
   
   try {
-    const is_correct = await checkAnswer(quizState.question.id, userAnswer);
-    
-    quizElements.quizResult.textContent = is_correct ? '回答正確！':'回答錯誤！';
-    console.log(userAnswer);
+    const result = await requestCheckAnswer(quizState.sessionId, userAnswer);
 
-    if (is_correct) {
-      quizElements.quizResult.textContent = '回答正確！'
+    if (result.is_correct) {
+      quizState.answered = true;
+      quizState.currentScore += result.score;
+      // 這邊應該要把下一題帶上來?
+      quizElements.progress.textContent = 
+      `第${quizState.question.question_order}題 / 共${quizState.questionCount}題, 
+      目前分數: ${quizState.currentScore}`;
+
+      quizElements.quizResult.textContent = `回答正確！獲得 ${result.score} 分`;
+      quizElements.answerInput.disabled = true;
+      quizElements.nextHintButton.disabled = true;
+      quizElements.nextQuestionButton.hidden = false;
     }
     else {
-      quizElements.quizResult.textContent = '回答錯誤！'
+      quizElements.quizResult.textContent =
+        `回答錯誤！目前答對可獲得 ${result.available_score} 分`;
       quizElements.answerInput.value = '';
     }
   } 
@@ -309,11 +302,6 @@ async function submitQuizAnswer(event) {
 }
 
 export function initQuiz(questionType, questionCount) {
-  // quizElements.drawQuestionButton.addEventListener(
-  //   'click',
-  //   drawQuestion
-  // );
-
   quizElements.nextHintButton.addEventListener(
     'click',
     showNextHint

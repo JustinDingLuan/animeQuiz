@@ -1,37 +1,32 @@
 import express from 'express';
-import { checkAnswer } from './quizAnswer.js';
 import { supabaseAdmin } from './databaseAdmin.js';
-import { createQuizSession } from './quizSession.js';
+import {
+  checkQuizAnswer,
+  createQuizSession,
+  revealNextHint,
+} from './quizSession.js';
 
 const app = express();
 
 app.use(express.json());
 
 app.post(
-  '/api/check-answer',
+  '/api/quiz-session/:sessionId/check-quiz-answer',
   // request.body 是 HTTP request 的資料內容，只是剛好叫做 body，不是 html 裡面的那個 <body>
   async (request, response) => {
-    const {questionId, userAnswer} = request.body;
+    const {sessionId} = request.params;
+    const {userAnswer} = request.body;
 
-    if (
-      !Number.isInteger(questionId) ||
-      typeof userAnswer !== 'string' ||
-      !userAnswer.trim()
-    ) {
+    if (!sessionId || typeof userAnswer !== 'string' || !userAnswer.trim()) {
       return response.status(400).json({
-        message: '題目 ID 或答案格式錯誤',
+        message: 'Session ID 或答案格式錯誤',
       });
     }
 
     try {
-      const isCorrect = await checkAnswer(
-        questionId,
-        userAnswer
-      );
+      const result = await checkQuizAnswer(sessionId, userAnswer);
 
-      return response.status(200).json({
-        isCorrect,
-      });
+      return response.status(200).json(result);
     } catch (error) {
       console.error(
         '答案判斷失敗：',
@@ -46,7 +41,7 @@ app.post(
 );
 
 app.post(
-  '/api/quiz-session',  
+  '/api/create-quiz-session',  
   async (request, response) => {
     const { questionType, questionCount } = request.body;
     // 這邊應該是不會出錯，我直接用下拉式選單弄得
@@ -81,6 +76,36 @@ app.post(
     }
   }
 );
+
+app.post(
+  '/api/quiz-session/:sessionId/reveal-next-hint',
+  async (request, response) => {
+    const { sessionId } = request.params;
+
+    if (!sessionId) {
+      return response.status(400).json({
+        message: '缺少 sessionId',
+      });
+    }
+
+    try {
+      const result = await revealNextHint(sessionId);
+
+      return response.status(200).json(result);
+    } 
+    catch (error) {
+      console.error(
+        '取得下一個提示失敗：',
+        error
+      );
+
+      return response.status(500).json({
+        message: '取得下一個提示失敗',
+      });
+    }
+  }
+);
+
 
 app.listen(3000, '0.0.0.0', () => {
    console.log(
