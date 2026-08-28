@@ -3,7 +3,8 @@ import {
   checkQuizAnswer,
   createQuizSession,
   revealNextHint,
-  nextQuestion
+  nextQuestion,
+  getQuizResult
 } from './quizSession.js';
 
 const app = express();
@@ -129,6 +130,34 @@ app.post(
 
       return response.status(500).json({
         message: '取得下一個題目失敗',
+      }); 
+    }
+  }
+);
+
+app.get(
+  '/api/quiz-session/:sessionId/result',
+  async (request, response) => {
+    const { sessionId } = request.params;
+
+    if (!sessionId) {
+      return response.status(400).json({
+        message: '缺少 sessionId',
+      });
+    }
+
+    try {
+      const result = await getQuizResult(sessionId); 
+      return response.status(200).json(result);
+    }
+    catch (error) {
+      console.error(
+        '取得遊戲結果失敗：',
+        error
+      );
+
+      return response.status(500).json({
+        message: '取得遊戲結果失敗',
       }); 
     }
   }

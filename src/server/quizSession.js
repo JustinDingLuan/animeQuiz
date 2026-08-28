@@ -269,7 +269,7 @@ export async function checkQuizAnswer(sessionId, userAnswer) {
          : 0,
       available_score: updatedQuestion.score,
       already_answered: false,
-
+      is_last_question: sessionQuestions.question_order === sessionQuestions.question_count,
    };
 }
 
@@ -293,13 +293,8 @@ export async function nextQuestion(sessionId) {
       .from('quiz_sessions')
       .select('question_count')
       .eq('id', sessionId)
-      .single();
+      .single();   
    
-   if (currentQuestion.question_order === currentSession.question_count) {
-      // 如果是最後一題，跳到結算畫面
-      // todo
-      return null;
-   }
 
    if (currentQuestionError) {
       console.error('取得進行中的題目失敗：', currentQuestionError);
@@ -340,6 +335,16 @@ export async function nextQuestion(sessionId) {
    }
 
    const currentTotalScore = totalScore.reduce((sum, item) => sum + item.score, 0);
+   const game_over = currentQuestion.question_order === currentSession.question_count;
+   if (game_over) {
+      // 如果是最後一題，直接回傳 game_over = true，交給前端跳轉畫面
+      return {
+         current_total_score: currentTotalScore,
+         current_question: null,
+         game_over: true,
+      };
+   }
+
 
    const nextQuestionOrder = currentQuestion.question_order + 1;
    const {data: nextQuestion, error: nextQuestionError} = await supabaseAdmin
@@ -417,5 +422,40 @@ export async function nextQuestion(sessionId) {
          hints_revealed: 1,
          available_score: nextQuestion.score,
       }
+   };
+}
+
+export async function getQuizResult(sessionId) {
+   // 這裡不用 .single 因為就是要取得一個 session 裡面的多筆資料
+   const {data: sessionQuestions, error: sessionQuestionsError} = await supabaseAdmin
+      .from('quiz_session_questions')
+      .select(`
+         question_id,
+         question_order,
+         hints_revealed,
+         status,
+         score,
+         is_correct
+      `)
+      .eq('session_id', sessionId)
+      // 每個 row 是會被覆寫的，所以不用確定狀態已經是 answered 才計算分數
+
+   if (sessionQuestionsError) {
+      console.error('取得題目紀錄失敗：', sessionQuestionsError);
+      throw sessionQuestionsError;
+   }
+
+   const totalScore = sessionQuestions.reduce((sum, item) => sum + (item.is_correct ? item.score : 0), 0);
+
+   return {
+      current_total_score: totalScore,
+      // questions: sessionQuestions.map(q => ({
+      //    question_id: q.question_id,
+      //    question_order: q.question_order,
+      //    hints_revealed: q.hints_revealed,
+      //    status: q.status,
+      //    score: q.score,
+      //    is_correct: q.is_correct,
+      // })),
    };
 }

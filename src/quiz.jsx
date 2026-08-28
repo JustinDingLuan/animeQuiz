@@ -287,6 +287,11 @@ async function submitQuizAnswer(event) {
         `回答錯誤！目前答對可獲得 ${result.available_score} 分`;
       quizElements.answerInput.value = '';
     }
+
+    if (result.is_last_question) {
+      quizElements.nextQuestionButton.textContent = '查看結果';
+      quizElements.quizResult.textContent = '遊戲結束';
+    }
   } 
   catch (error) {
     console.error('檢查答案失敗：', error);
@@ -311,8 +316,11 @@ async function nextQuestion() {
   quizElements.nextQuestionButton.disabled = true;
   try {
     const result = await requestNextQuestion(quizState.sessionId);
-    if (!result.current_question) {
+
+    if (result.game_over) {
       quizElements.status.textContent = '已經沒有下一題了';
+      const sessionId = encodeURIComponent(quizState.sessionId);
+      window.location.assign(`/gameResult.html?sessionId=${sessionId}`);
       return;
     }
     // 把所有內容都換成下一題，並重置必要內容: 使用者輸入、hint 數量、hint list
@@ -330,11 +338,10 @@ async function nextQuestion() {
     quizElements.progress.textContent =
       `第${quizState.question.question_order}題 / 共${quizState.questionCount}題, 目前分數: ${quizState.currentScore}`;
 
-    quizElements.answerInput.value = '';
     quizElements.nextHintButton.disabled = false;
-    quizElements.nextQuestionButton.hidden = true;    
+    quizElements.answerInput.value = '';
     quizElements.answerInput.disabled = false;
-
+    quizElements.nextQuestionButton.hidden = true;    
   }
   catch (error) {
     console.error('取得下一題失敗：', error);
