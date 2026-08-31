@@ -7,8 +7,8 @@ import {
   getQuizResult
 } from './quizSession.js';
 
+// 透過 express 建立一個 HTTP server，並且設定好各種 API endpoint，讓前端可以透過 HTTP request 來跟後端互動。
 const app = express();
-
 app.use(express.json());
 
 app.post(
@@ -25,10 +25,13 @@ app.post(
     }
 
     try {
+      // 拿到後端 api 給出的結果以後，把結果用 json 的形式回傳給前端
+      // 前端接收到這個 json result 可以去更新畫面
       const result = await checkQuizAnswer(sessionId, userAnswer);
-
+      
       return response.status(200).json(result);
-    } catch (error) {
+    } 
+    catch (error) {
       console.error(
         '答案判斷失敗：',
         error
@@ -45,18 +48,7 @@ app.post(
   '/api/create-quiz-session',  
   async (request, response) => {
     const { questionType, questionCount } = request.body;
-    // 這邊應該是不會出錯，我直接用下拉式選單弄得
-    // if (
-    //   typeof questionType !== 'string' ||
-    //   !questionType.trim() ||
-    //   !Number.isInteger(questionCount) ||
-    //   questionCount <= 0
-    // ) {
-    //   return response.status(400).json({
-    //     message: '題目類型或數量格式錯誤',
-    //   });
-    // }
-
+    
     try {
       const quizSession = await createQuizSession(
         questionType,

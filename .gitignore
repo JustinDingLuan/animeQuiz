@@ -1,7 +1,6 @@
 *.env
 *.env.local
 /dist
-*.html
 *.csv
 *.xlsx
 *.config

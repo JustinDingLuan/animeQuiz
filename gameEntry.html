@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
+    <title>選擇遊戲模式 | Anime Quiz</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+
+  <body class="game-entry-page">
+    <main class="game-entry-main">
+      <section
+        id="game-setup"
+        class="setup-card"
+        aria-labelledby="game-setup-title"
+      >
+        <p class="setup-eyebrow">Test your anime knowledge</p>
+        <h1 id="game-setup-title">Anime Quiz</h1>
+        <p class="setup-description">
+          選擇喜歡的題型與題數，準備開始挑戰。
+        </p>
+
+        <form
+          class="setup-form"
+          action="/quiz.html"
+          method="get"
+        >
+          <div class="form-field">
+            <div class="field-heading">
+              <label for="question-type">題型</label>
+              <span>選擇本次挑戰方式</span>
+            </div>
+            <div class="select-control">
+              <select
+                class="setup-select"
+                id="question-type"
+                name="question-type"
+              >
+                <option value="five_hints">五提示猜角色</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-field">
+            <div class="field-heading">
+              <label for="question-count">題數</label>
+              <span>大約每題需要 30 秒</span>
+            </div>
+            <div class="select-control">
+              <select
+                class="setup-select"
+                id="question-count"
+                name="question-count"
+              >
+                <option value="5">5 題・快速挑戰</option>
+                <option value="10">10 題・標準模式</option>
+                <option value="15">15 題・進階挑戰</option>
+                <option value="20">20 題・完整測驗</option>
+              </select>
+            </div>
+          </div>
+
+          <button class="start-game-button" type="submit">
+            <span>開始遊戲</span>
+            <span aria-hidden="true">→</span>
+          </button>
+        </form>
+      </section>
+    </main>
+  </body>
+</html>

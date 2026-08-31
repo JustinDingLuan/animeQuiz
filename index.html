@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="description" content="動畫猜謎，測試你對動畫的了解。" />
+
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
+
+    <title>動畫猜謎資料庫</title>
+  </head>
+
+  <body>
+    <main>
+      <!-- <h1>動畫列表</h1>
+      <p id="status">正在讀取資料……</p>
+      <ul id="anime-list"></ul> -->
+
+      <section>
+        <h2 id="character-list-title" style="display: none;">對應動畫角色</h2>
+
+        <p id="character-status" style="display: none;">正在讀取角色資料……</p>
+        <ul id="character-list"></ul>
+      </section>
+
+      <section id="search-animes">
+        <h2>搜尋動畫</h2>
+        <p id="anime-search-status"></p>
+        <form id="anime-search-form" class="search-form">
+          <label class="visually-hidden" for="anime-search">動畫名稱</label>
+          <input
+            id="anime-search"
+            type="search"
+            placeholder="輸入動畫名稱"
+          />
+
+          <label class="visually-hidden" for="anime-season">
+          播出季度
+          </label>
+          <select id="anime-season">
+            <option value="">請選擇季度</option>
+            <option value="1">冬季</option>
+            <option value="2">春季</option>
+            <option value="3">夏季</option>
+            <option value="4">秋季</option>
+          </select>
+
+          <button class="search-button" type="submit">搜尋</button>
+        </form>
+
+        <ul id="anime-search-results"></ul>
+      </section>
+
+      <!-- <section id="quiz-section">
+        <h1>測試用</h1>
+        <h2>五提示猜動畫</h2>
+
+        <button id="draw-question-button" type="button">
+          抽題
+        </button>
+        <p id="quiz-status">按下抽題選擇題目</p>
+
+        <div id="quiz-content" hidden>
+          <p>
+            已顯示
+            <span id="quiz-hint-count">1</span>
+            / 5 個提示
+          </p>
+
+          <ol id="quiz-hint-list"></ol>
+
+          <div class="quiz-actions">
+            <button id="next-hint-button" type="button"> 下一個提示 </button>
+          </div>
+
+          <form id="quiz-answer-form">
+            <input
+              id="quiz-answer"
+              type="text"
+              placeholder="輸入你的答案"
+              autocomplete="off"
+            />
+
+            <button type="submit"> 輸入 </button>
+          </form>
+
+          <p id="quiz-result"></p>
+
+          <button id="next-question-button" type="button" hidden>
+            下一題
+          </button>
+        </div>
+      </section> -->
+      
+      <section id="game-entry">
+        <h2>正式進入遊戲</h2>
+        <form action="/gameEntry.html" method="get">
+          <button id="start-game-button" type="submit">
+            開始遊戲
+          </button>
+        </form>
+      </section>
+      
+    </main>
+
+    
+    
+
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
