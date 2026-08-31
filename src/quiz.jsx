@@ -1,48 +1,6 @@
 import './styles.css';
-import { supabase } from './supabase.js';
-
-const quizElements = {
-  status:
-  document.querySelector('#quiz-status'),
-  
-  content:
-  document.querySelector('#quiz-content'),
-  
-  hintCount:
-  document.querySelector('#quiz-hint-count'),
-  
-  hintList:
-  document.querySelector('#quiz-hint-list'),
-  
-  nextHintButton:
-  document.querySelector('#next-hint-button'),
-  
-  answerForm:
-  document.querySelector('#quiz-answer-form'),
-  
-  answerInput:
-  document.querySelector('#quiz-answer'),
-  
-  quizResult:
-  document.querySelector('#quiz-result'), 
-  
-  progress:
-  document.querySelector('#quiz-progress'),
-
-  nextQuestionButton:
-  document.querySelector('#next-question-button'),
-};
-
-const quizState = {
-  sessionId: null,
-
-  question: null,
-  visibleHintCount: 0,
-  answered: false,
-
-  questionCount: 0,
-  currentScore: 0,
-};
+import './quiz.css';
+import { useState, useEffect } from 'react';
 
 
 async function apiRequest(url, {method = 'GET', body, headers={}} = {}) {
@@ -80,127 +38,267 @@ async function requestQuizSession(questionType, questionCount) {
   return result;
 }
 
-async function startQuiz(questionType, questionCount) {
-  try {
-    // 看 quiz_session.js 的 createQuizSession
-    // 裡面有 session_id、question_count、current_question
-    const session = await requestQuizSession(questionType, questionCount);
-    // quizElements.status.textContent = '測驗開始！';
+export function Quiz({questionType, questionCount}) { 
+  const [sessionId, setSessionId] = useState(null);
+  const [question, setQuestion] = useState(null);
+  // questionCount 在建立 session 的時候就固定了，不用去更動他
+  const [visibleHintCount, setVisibleHintCount] = useState(0);
+  const [answered, setAnswered] = useState(false);
+  const [isCorrect, setIsCorrect] = useState(false);
+  const [currentScore, setCurrentScore] = useState(0);
+  // 
+  const [hints, setHints] = useState([]);
+  const [userAnswer, setUserAnswer] = useState('');
+  const [resultMessage, setResultMessage] = useState('');
+  const [hasNextHint, setHasNextHint] = useState(true);
+  const [hasNextQuestion, setHasNextQuestion] = useState(true);
 
-    quizState.sessionId = session.session_id;
-    quizState.questionCount = questionCount;
+  useEffect(() => {
+    async function startQuiz() {
+      try {
+        const session = await requestQuizSession(questionType, questionCount);
+        setSessionId(session.session_id);        
 
-    const currentQuestion = session.current_question;
-    quizState.question = currentQuestion;    
-    quizState.visibleHintCount = 1;
-    quizState.answered = false;
-    // browser 提供的原生 web storage，不用 import 任何東西
-    sessionStorage.setItem('quizSessionId', session.session_id);
-    // 清空 list，避免裡面有甚麼奇怪的初始內容
-    quizElements.hintList.replaceChildren();
+        const currentQuestion = session.current_question;
+        setQuestion(currentQuestion);
+        setVisibleHintCount(currentQuestion.hints_revealed);
+        setAnswered(false);
+        sessionStorage.setItem('quizSessionId', session.session_id);
 
-    const hint = document.createElement('li');
-    hint.textContent = currentQuestion.hint.hint_text;
-    quizElements.hintList.appendChild(hint);
-    quizElements.hintCount.textContent = String(currentQuestion.hints_revealed);
+        setHints([currentQuestion.hint.hint_text]);
+      } 
+      catch (error) {
+        console.error('建立測驗失敗：', error);
+      }
+    }
 
-    quizElements.progress.textContent = `第1題 / 共${questionCount}題, 目前分數: ${quizState.currentScore}`;
-    quizElements.answerInput.value = '';
-    quizElements.answerInput.disabled = false;
-    quizElements.quizResult.textContent = '';
-    quizElements.content.hidden = false;
-  } 
-  catch (error) {    
-    console.error('建立測驗失敗：', error);
+    startQuiz();
+  }, [questionType, questionCount]);
+  // 一開始的時候拿不到 question，因為 useEffect 還沒跑完，所以先回傳 loading 的資訊給使用者看
+  // 等 useEffect 跑完之後，question 就會有值了，畫面就會重新 render
+  if (!question) {
+    return (
+      <main className="quiz-page">
+        <section className="quiz-loading" aria-live="polite">
+          <span className="quiz-loading-spinner" aria-hidden="true" />
+          <p>正在準備題目……</p>
+        </section>
+      </main>
+    );
   }
-}  
-// async function fiveHintQuestion() {
-//   // 確認題目有幾題?
-//   const { count, error: countError } = await supabase
-//     .from('questions')
-//     .select('id', {
-//       count: 'exact',
-//       head: true,
-//     })
-//     .eq('question_type', 'five_hints');
 
-//   if (countError) {
-//     throw countError;
-//   }
+  async function showNextHint() {
+    try {
+      const result = await requestNextHint(sessionId);
+      if (!result.hint) {
+        setHasNextHint(false);
+        console.log('沒有更多提示了');
+        return;
+      }
+      
+      setHints((prevHints) => {return [...prevHints, result.hint.hint_text]});
+      setVisibleHintCount(result.hints_revealed);
+    } 
+    catch (error) {
+      console.error('取得下一個提示失敗：', error);
+    }
+  }
 
-//   if (!count) {
-//     return null;
-//   }  
+  async function nextQuestion() {
+    try {
+      const result = await requestNextQuestion(sessionId);
 
-//   // 選題目
-//   const randomOffset =
-//     Math.floor(Math.random() * count);
+      if (result.game_over) {
+        setHasNextQuestion(false);
+        console.log('已經沒有下一題了');
+        const encodedSessionId = encodeURIComponent(sessionId);
+        window.location.assign(`/gameResult.html?sessionId=${encodedSessionId}`);
+        return;
+      }
+      // 換到下一題的時候記得把 isCorrect 設回 false，不然無法輸入
+      setIsCorrect(false);
+      setQuestion(result.next_question);
+      setVisibleHintCount(result.next_question.hints_revealed);
+      setAnswered(false);
+      setHints([result.next_question.hint.hint_text]);
+      setUserAnswer('');
+    } 
+    catch (error) {
+      console.error('取得下一題失敗：', error);
+    }
+  }
 
-//   const { data: question, error } = await supabase
-//     .from('questions')
-//     .select(`
-//       id,
-//       question_type,
-//       answer_type,
-//       question_hints (
-//         id,
-//         hint_order,
-//         hint_text
-//       )
-//     `)
-//     .eq('question_type', 'five_hints')
-//     .order('id', { ascending: true })
-//     .range(randomOffset, randomOffset)
-//     .single();
+  async function submitQuizAnswer(event) {
+    event.preventDefault();
 
-//   if (error) {
-//     throw error;
-//   }
+    const normalizedUserAnswer = userAnswer.trim();
 
-//   question.question_hints.sort(
-//     (firstHint, secondHint) =>
-//       firstHint.hint_order - secondHint.hint_order
-//   );
+    if (!sessionId || !question || answered || !normalizedUserAnswer) {
+      return;
+    }
 
-//   return question;
-// }
-  
+    try {
+      const result = await requestCheckAnswer(sessionId, normalizedUserAnswer);
+      setResultMessage('');
 
-// async function drawQuestion() {
-//   quizElements.drawQuestionButton.disabled = true;
-//   quizElements.status.textContent = '正在抽取題目……';
+      if (result.is_correct) {
+        setIsCorrect(true);
+        setResultMessage(`回答正確！獲得 ${result.score} 分`);
+        console.log(`回答正確！獲得 ${result.score} 分`);
 
-//   try {
-//     const question =
-//       await fiveHintQuestion();
+        setAnswered(true);
+        setCurrentScore((prevScore) => {return prevScore + result.score});        
+      } 
+      else {        
+        setResultMessage(`回答錯誤！目前答對可獲得 ${result.available_score} 分`);
+        setUserAnswer('');
+      }
+    } 
+    catch (error) {
+      console.error('提交答案失敗：', error);
+    }
+  }
 
-//     if (!question) {
-//       quizElements.status.textContent = '目前沒有可使用的五提示題目';
-//       return;
-//     }
+  async function skipQuestion() {
+    try {
+      const result = await requestSkipQuestion(sessionId);
+      if (result.game_over) {
+        setHasNextQuestion(false);
+        console.log('已經沒有下一題了');
 
-//     quizState.question = question;
-//     quizState.visibleHintCount = 1;
-//     quizState.answered = false;
+        const encodedSessionId = encodeURIComponent(sessionId);
+        window.location.assign(`/gameResult.html?sessionId=${encodedSessionId}`);
 
-//     quizElements.answerInput.value = '';
-//     quizElements.answerInput.disabled = false;
-//     quizElements.quizResult.textContent = '';
-//     quizElements.content.hidden = false;
+        return;
+      }
+      // 跟下一題的邏輯一樣，換到下一題的時候記得把 isCorrect 設回 false，不然無法輸入
+      setIsCorrect(false);
+      setQuestion(result.next_question);
+      setVisibleHintCount(result.next_question.hints_revealed);
+      setAnswered(false);
+      setHints([result.next_question.hint.hint_text]);
+      setUserAnswer('');
+    } 
+    catch (error) {
+      console.error('跳過題目失敗：', error);
+    }
+  }
 
-//     renderQuizHints();
+  return (
+    <main className="quiz-page">
+      <section className="quiz-shell" aria-labelledby="quiz-title">
+        <header className="quiz-header">
+          <a className="quiz-back-link" href="/gameEntry.html">
+            ← 返回遊戲設定
+          </a>
 
-//     quizElements.status.textContent =
-//       '題目抽取完成';
-//   } catch (error) {
-//     console.error('抽取題目失敗：', error);
+          <p className="quiz-eyebrow">ANIME FIVE HINTS</p>
+          <h1 id="quiz-title">五提示猜角色</h1>
 
-//     quizElements.status.textContent =
-//       `抽取題目失敗：${error.message}`;
-//   } finally {
-//     quizElements.drawQuestionButton.disabled = false;
-//   }
-// }
+          <div className="quiz-progress-bar" aria-label={`第 ${question.question_order} 題，共 ${questionCount} 題`}>
+            <span
+              className="quiz-progress-value"
+              style={{width: `${(question.question_order / questionCount) * 100}%`}}
+            />
+          </div>
+
+          <div className="quiz-meta">
+            <p>
+              第 <strong>{question.question_order}</strong> 題
+              <span aria-hidden="true"> / </span>
+              共 {questionCount} 題
+            </p>
+            <p className="quiz-score">目前總分 <strong>{currentScore}</strong></p>
+          </div>
+        </header>
+
+        <section className="quiz-hints-card" aria-labelledby="quiz-hints-title">
+          <div className="quiz-section-heading">
+            <div>
+              <p className="quiz-section-kicker">逐步揭密</p>
+              <h2 id="quiz-hints-title">角色提示</h2>
+            </div>
+            <span className="quiz-hint-counter">
+              {visibleHintCount}<small>/ 5</small>
+            </span>
+          </div>
+
+          <ol className="quiz-hint-list" aria-live="polite">
+          {hints.map((hint, index) => (
+            <li
+              className="quiz-hint-item"
+              data-seal-label={`HINT ${index + 1}`}
+              key={`${question.question_order}-${index}`}
+            >
+              <span>{hint}</span>
+            </li>
+          ))}
+          </ol>
+
+          <button
+            className="quiz-button quiz-button-hint"
+            type="button"
+            onClick={showNextHint}
+            disabled={!hasNextHint}
+          >
+            {hasNextHint ? '撕開下一個提示' : '提示已全部揭露'}
+          </button>
+        </section>
+
+        <form className="quiz-answer-card" onSubmit={submitQuizAnswer}>
+          <label htmlFor="quiz-answer">你的答案</label>
+          <div className="quiz-answer-row">
+            <input
+              id="quiz-answer"
+              value={userAnswer}
+              onChange={(event) => setUserAnswer(event.target.value)}
+              type="text"
+              placeholder="輸入角色名稱"
+              autoComplete="off"
+              disabled={isCorrect}
+            />
+            <button
+              className="quiz-button quiz-button-primary"
+              type="submit"
+              disabled={isCorrect || !userAnswer.trim()}
+            >
+              提交答案
+            </button>
+          </div>
+        </form>
+
+        <p
+          className={`quiz-result-message ${isCorrect ? 'is-correct' : 'is-incorrect'}`}
+          aria-live="polite"
+        >
+          {resultMessage}
+        </p>
+        
+        <div className="quiz-footer-action">
+          {answered ? (
+            <button
+              className="quiz-button quiz-button-primary"
+              type="button"
+              onClick={nextQuestion}
+              disabled={!hasNextQuestion}
+            >
+              下一題
+            </button>
+          ) : (
+            <button
+              className="quiz-button quiz-button-skip"
+              type="button"
+              onClick={skipQuestion}
+              disabled={!hasNextQuestion}
+            >
+              跳過此題（本題 0 分）
+            </button>
+          )}
+        </div>
+      </section>
+    </main>
+  );
+}
 
 async function requestNextHint(sessionId) {
   const encodedSessionId = encodeURIComponent(sessionId);
@@ -209,37 +307,6 @@ async function requestNextHint(sessionId) {
   });
 
   return result;
-}
-
-async function showNextHint() {
-  // 應該設計成可以讓使用者一直回答? 先不放 quizState.answered 的判斷
-  if (!quizState.sessionId || !quizState.question) {
-    return;
-  }
-
-  quizElements.nextHintButton.disabled = true;
-  try {
-    const result = await requestNextHint(quizState.sessionId);
-    if (!result.hint) {
-      quizElements.status.textContent = '沒有更多提示了';
-      return;
-    }
-    
-    const listItem = document.createElement('li');
-    listItem.textContent = result.hint.hint_text;
-    quizElements.hintList.appendChild(listItem);
-    quizState.visibleHintCount = result.hints_revealed;
-    quizElements.hintCount.textContent = String(result.hints_revealed);
-
-    // 如果已經沒有提示可用了，把按鈕 disable 掉
-    quizElements.nextHintButton.disabled = !result.has_next_hint;
-  }
-  catch (error) {
-    console.error('取得下一個提示失敗：', error);
-    quizElements.status.textContent = `取得下一個提示失敗：${error.message}`;
-    // 一般請求錯誤時允許使用者重試。
-    quizElements.nextHintButton.disabled = false;
-  }
 }
 
 async function requestCheckAnswer(sessionId, userAnswer) {
@@ -251,54 +318,6 @@ async function requestCheckAnswer(sessionId, userAnswer) {
   return result;
 }
 
-async function submitQuizAnswer(event) {
-  event.preventDefault();
-  const userAnswer =
-    quizElements.answerInput.value.trim();
-
-  if (
-    !quizState.sessionId ||
-    !quizState.question ||
-    quizState.answered ||
-    !userAnswer
-  ) {
-    return;
-  }
-  
-  try {
-    const result = await requestCheckAnswer(quizState.sessionId, userAnswer);
-
-    if (result.is_correct) {
-      quizState.answered = true;
-      quizState.currentScore += result.score;
-      // 這邊應該要把下一題帶上來?
-      // 不用，等按下下一題的時候才要帶上來
-      quizElements.progress.textContent = 
-      `第${quizState.question.question_order}題 / 共${quizState.questionCount}題, 
-      目前分數: ${quizState.currentScore}`;
-
-      quizElements.quizResult.textContent = `回答正確！獲得 ${result.score} 分`;
-      quizElements.answerInput.disabled = true;
-      quizElements.nextHintButton.disabled = true;
-      quizElements.nextQuestionButton.hidden = false;
-    }
-    else {
-      quizElements.quizResult.textContent =
-        `回答錯誤！目前答對可獲得 ${result.available_score} 分`;
-      quizElements.answerInput.value = '';
-    }
-
-    if (result.is_last_question) {
-      quizElements.nextQuestionButton.textContent = '查看結果';
-      quizElements.quizResult.textContent = '遊戲結束';
-    }
-  } 
-  catch (error) {
-    console.error('檢查答案失敗：', error);
-    quizElements.quizResult.textContent = `檢查答案失敗：${error.message}`;
-  }  
-}
-
 async function requestNextQuestion(sessionId) {
   const encodedSessionId = encodeURIComponent(sessionId);
   const result = await apiRequest(`/api/quiz-session/${encodedSessionId}/next-question`, {
@@ -308,65 +327,11 @@ async function requestNextQuestion(sessionId) {
   return result;
 }
 
-async function nextQuestion() {
-  if (!quizState.sessionId) {
-    return;
-  }
+async function requestSkipQuestion(sessionId) {
+  const encodedSessionId = encodeURIComponent(sessionId);
+  const result = await apiRequest(`/api/quiz-session/${encodedSessionId}/skip-question`, {
+    method: 'POST',
+  });
 
-  quizElements.nextQuestionButton.disabled = true;
-  try {
-    const result = await requestNextQuestion(quizState.sessionId);
-
-    if (result.game_over) {
-      quizElements.status.textContent = '已經沒有下一題了';
-      const sessionId = encodeURIComponent(quizState.sessionId);
-      window.location.assign(`/gameResult.html?sessionId=${sessionId}`);
-      return;
-    }
-    // 把所有內容都換成下一題，並重置必要內容: 使用者輸入、hint 數量、hint list
-    quizState.question = result.current_question;
-    quizState.visibleHintCount = 1;
-    quizState.answered = false;
-
-    // 直接清空 list，避免裡面有甚麼奇怪的初始內容
-    quizElements.hintList.replaceChildren();
-    const hint = document.createElement('li');
-    hint.textContent = result.current_question.hint.hint_text;
-    quizElements.hintList.appendChild(hint);
-
-    quizElements.hintCount.textContent = String(result.current_question.hints_revealed);
-    quizElements.progress.textContent =
-      `第${quizState.question.question_order}題 / 共${quizState.questionCount}題, 目前分數: ${quizState.currentScore}`;
-
-    quizElements.nextHintButton.disabled = false;
-    quizElements.answerInput.value = '';
-    quizElements.answerInput.disabled = false;
-    quizElements.nextQuestionButton.hidden = true;    
-  }
-  catch (error) {
-    console.error('取得下一題失敗：', error);
-    quizElements.status.textContent = `取得下一題失敗：${error.message}`;
-  }
-  finally {
-    quizElements.nextQuestionButton.disabled = false;
-  }
-}
-
-export function initQuiz(questionType, questionCount) {
-  quizElements.nextHintButton.addEventListener(
-    'click',
-    showNextHint
-  );
-
-  quizElements.answerForm.addEventListener(
-    'submit',
-    submitQuizAnswer
-  );
-
-  quizElements.nextQuestionButton.addEventListener(
-    'click',
-    nextQuestion
-  );
-
-  startQuiz(questionType, questionCount);
+  return result;
 }

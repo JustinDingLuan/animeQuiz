@@ -1,6 +1,6 @@
 import './styles.css';
 import { supabase } from './supabase.js';
-import { initQuiz } from './quiz.jsx';
+// import { initQuiz } from './quiz.jsx';
 
 const elements = {
    status: document.querySelector('#status'),
@@ -25,7 +25,7 @@ const seasonNames = {
 function main() {
    // initloadAnimes();
    initSearchAnimes();
-   initQuiz();
+   // initQuiz();
 }
 
 function initloadAnimes() {

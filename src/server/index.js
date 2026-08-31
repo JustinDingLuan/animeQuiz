@@ -4,6 +4,7 @@ import {
   createQuizSession,
   revealNextHint,
   nextQuestion,
+  skipQuestion,
   getQuizResult
 } from './quizSession.js';
 
@@ -122,6 +123,34 @@ app.post(
 
       return response.status(500).json({
         message: '取得下一個題目失敗',
+      }); 
+    }
+  }
+);
+
+app.post(
+  '/api/quiz-session/:sessionId/skip-question',
+  async (request, response) => {
+    const { sessionId } = request.params;
+
+    if (!sessionId) {
+      return response.status(400).json({
+        message: '缺少 sessionId',
+      });
+    }
+    
+    try {
+      const result = await skipQuestion(sessionId); 
+      return response.status(200).json(result);
+    }
+    catch (error) {
+      console.error(
+        '跳過題目失敗：',
+        error
+      );
+
+      return response.status(500).json({
+        message: '跳過題目失敗',
       }); 
     }
   }

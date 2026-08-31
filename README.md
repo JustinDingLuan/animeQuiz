@@ -17,3 +17,12 @@
 ## 20260827
 寫完 next hint 跟 check answer 的部分，並且可以成功帶入下一題
 接下來就是在 nextQuestion 的地方判斷，如果已經是最後一題，就要跳到結算畫面去
+
+## 20260831
+筆記:
+- useRef 不會觸發 re-render, useState 會
+- react 呼叫 component 的時候，只會傳入一個物件，所以我們給參數也要用物件的方式給 -> {questionType, questionCount}
+- const [hints, setHints] = useState([])，這個 function 就會緊緊地跟著這個 hints 的變數。  
+即便我用 setHints((prevHints) => {return [...prevHints, result.hint]}) 也是一樣，react 會把這個 function 跟著的變數(hints) 當作 prevHints 傳入這個箭頭函數，prevHints 就是 locally 重新命名而已
+- React 框架中，Export Function name 第一個字要大寫
+
