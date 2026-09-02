@@ -6,5 +6,4 @@
 *.config
 *.container
 /node_modules
-*.json
-*.config.js
+
