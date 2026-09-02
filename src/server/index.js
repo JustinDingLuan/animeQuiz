@@ -8,9 +8,140 @@ import {
   getQuizResult
 } from './quizSession.js';
 
+import {
+  signUp,
+  signIn,
+  signInAsGuest,
+  signOut,
+} from './auth.js';
 // 透過 express 建立一個 HTTP server，並且設定好各種 API endpoint，讓前端可以透過 HTTP request 來跟後端互動。
 const app = express();
 app.use(express.json());
+
+app.post(
+  '/api/auth/sign-up',
+  async (request, response) => {
+    const { email, password } = request.body ?? {};
+
+    if (
+      typeof email !== 'string' ||
+      typeof password !== 'string' ||
+      !email.trim() ||
+      !password
+    ) {
+      return response.status(400).json({
+        message: '缺少 email 或 password',
+      });
+    }
+
+    try {
+      const data = await signUp(email.trim(), password);
+      return response.status(201).json(data);
+    } 
+    catch (error) {
+      console.error(
+        '註冊失敗：',
+        error
+      );
+
+      return response.status(error.status ?? 500).json({
+        message: error.message || '註冊失敗',
+        code: error.code ?? null,
+      });
+    }
+  }
+);
+
+app.post(
+  '/api/auth/sign-in',
+  async (request, response) => {
+    const { email, password } = request.body ?? {};
+
+    if (
+      typeof email !== 'string' ||
+      typeof password !== 'string' ||
+      !email.trim() ||
+      !password
+    ) {
+      return response.status(400).json({
+        message: '缺少 email 或 password',
+      });
+    }
+
+    try {
+      const data = await signIn(email.trim(), password);
+      return response.status(200).json(data);      
+    }
+    catch (error) {
+      console.error(
+        '登入失敗：',
+        error
+      );
+
+      return response.status(error.status ?? 401).json({
+        message: '電子郵件或密碼錯誤',
+        code: error.code ?? null,
+      });
+    }
+  }
+);
+
+app.post(
+  '/api/auth/guest',
+  async (request, response) => {
+    try {
+      const data = await signInAsGuest();
+      return response.status(201).json(data);
+    }
+    catch (error) {
+      console.error('來賓登入失敗：', error);
+
+      const isAnonymousDisabled =
+        error.code === 'anonymous_provider_disabled';
+
+      return response.status(error.status ?? 500).json({
+        message: isAnonymousDisabled
+          ? 'Supabase 尚未啟用 Anonymous Sign-Ins'
+          : (error.message || '來賓登入失敗'),
+        code: error.code ?? null,
+      });
+    }
+  }
+);
+
+app.post(
+  '/api/auth/sign-out',
+  async (request, response) => {
+    const authorization =
+      request.get('authorization') ?? '';
+    const [scheme, accessToken] = authorization.split(' ');
+
+    if (
+      scheme?.toLowerCase() !== 'bearer' ||
+      !accessToken
+    ) {
+      return response.status(401).json({
+        message: '缺少有效的登入憑證',
+      });
+    }
+
+    try {
+      await signOut(accessToken);
+      return response.status(200).json({ message: '登出成功' });
+    } 
+    catch (error) {
+      console.error(
+        '登出失敗：',
+        error
+      );
+
+      return response.status(error.status ?? 500).json({
+        message: error.message || '登出失敗',
+        code: error.code ?? null,
+      });
+    }
+  }
+);
 
 app.post(
   '/api/quiz-session/:sessionId/check-quiz-answer',

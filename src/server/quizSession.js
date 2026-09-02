@@ -335,6 +335,22 @@ async function updateSessionQuestion(sessionId, questionOrder, expectedStatus, u
    return updatedQuestion;
 }
 
+async function updateSessionStatus(sessionId, newStatus) {
+   const {data: updatedSession, error: updateSessionError} = await supabaseAdmin
+      .from('quiz_sessions')
+      .update({status: newStatus, last_activity: new Date().toISOString()})
+      .eq('id', sessionId)
+      .select()
+      .single();
+
+   if (updateSessionError) {
+      console.error(`更新測驗狀態為 ${newStatus} 失敗：`, updateSessionError);
+      throw updateSessionError;
+   }
+
+   return updatedSession;
+}
+
 export async function nextQuestion(sessionId) {
    const currentQuestion = await getSessionQuestion(sessionId, null, 'active', true);
 
@@ -361,6 +377,9 @@ export async function nextQuestion(sessionId) {
 
    if (!nextQuestion) {
       // 如果是最後一題，直接回傳 game_over = true，交給前端跳轉畫面
+      // 並且更新此次 session 的狀態為 completed
+      const updatedSession = await updateSessionStatus(sessionId, 'completed');
+
       return {
          current_total_score: currentTotalScore,
          message: '已經是最後一題',
@@ -435,6 +454,9 @@ export async function skipQuestion(sessionId) {
    const nextQuestion = await getSessionQuestion(sessionId, nextQuestionOrder, 'pending', false);
    if (!nextQuestion) {
       // 如果是最後一題，直接回傳 game_over = true，交給前端跳轉畫面
+      // 並且更新此次 session 的狀態為 completed
+      const updatedSession = await updateSessionStatus(sessionId, 'completed');
+
       return {
          current_total_score: currentTotalScore,
          message: '已經是最後一題',
