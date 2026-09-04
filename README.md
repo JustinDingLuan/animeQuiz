@@ -5,6 +5,9 @@
 我用 container 跑的，git 警示所有的 LF 會換成 CRLF
 正常沒問題，但如果跑 .sh 會有問題
 
+## css 筆記
+- :hover 表示滑鼠停在元素上的時候要做的操作
+
 #### 統一檔名用駝峰，變數用_
 ## 20260825
 建立網頁雛形-入口、跳轉頁面、初始遊戲設定
@@ -37,4 +40,4 @@ server 只會用在 dev command 的時候
 - session?.access_token 是 js 裡面的 optional chaining，如果物件存在就讀取 access_token，沒有就回傳 undefined
 - 新增 requireAuth 在跟遊戲相關的 api 上就好，不用放在跟登入有關的 api 上
 - 原本的寫法如果前端連按兩下送出答案並且答對的話，總分會加兩次
-- 目前的分數計算，如果前一階段答題完後繼續揭露提示，分數會變少
+- 目前的分數計算，如果前一階段答題完後繼續揭露提示，分數會變少。 解決了，我的 sql 根本沒有拿 is_correct

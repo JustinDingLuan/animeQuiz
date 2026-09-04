@@ -112,7 +112,8 @@ export async function revealNextHint(sessionId) {
          question_order,
          hints_revealed,
          status,
-         score
+         score,
+         is_correct
       `)
       .eq('session_id', sessionId)
       .eq('status', 'active')
@@ -162,8 +163,9 @@ export async function revealNextHint(sessionId) {
       hints_revealed: nextHintOrder,      
    };
    const newScore = Math.max(100, 600 - nextHintOrder * 100);
-   
-   if (!sessionQuestions.is_correct === true) {
+
+   console.log(`已經答對了嗎? ${sessionQuestions.is_correct}`);
+   if (!sessionQuestions.is_correct) {
       updates.score = newScore;
    }
    // 更新資料庫裡面關於 question 的紀錄
@@ -247,7 +249,7 @@ export async function checkQuizAnswer(sessionId, userAnswer) {
    if (sessionQuestions.is_correct === true) {
       return {
          question_order: sessionQuestions.question_order,
-         is_correct: true,
+         is_correct: sessionQuestions.is_correct,
          score: sessionQuestions.score,
          available_score: sessionQuestions.score,
          already_answered: true,

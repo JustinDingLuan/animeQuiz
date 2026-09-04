@@ -37,20 +37,18 @@ export function Quiz({questionType, questionCount}) {
   useEffect(() => {
     async function startQuiz() {
       try {
+        resetToEmptyState();
+
         const session = await requestQuizSession(questionType, questionCount);
         setSessionId(session.session_id);        
 
         const currentQuestion = session.current_question;
         setQuestion(currentQuestion);
         setVisibleHintCount(currentQuestion.hints_revealed);
-        setAnswered(false);
-        setCurrentScore(0);
-        setUserAnswer('');
-        setIsCorrect(false);
-        setHasNextHint(true);
+        setHints([currentQuestion.hint.hint_text]);
+        
         sessionStorage.setItem('quizSessionId', session.session_id);
 
-        setHints([currentQuestion.hint.hint_text]);
       } 
       catch (error) {
         console.error('建立測驗失敗：', error);
@@ -70,6 +68,14 @@ export function Quiz({questionType, questionCount}) {
         </section>
       </main>
     );
+  }
+
+  function resetToEmptyState() {
+    setAnswered(false);
+    setIsCorrect(false);    
+    setIsSubmitting(false);        
+    setUserAnswer('');
+    setResultMessage('');    
   }
 
   async function showNextHint() {
@@ -101,13 +107,11 @@ export function Quiz({questionType, questionCount}) {
         return;
       }
       // 換到下一題的時候記得把 isCorrect 設回 false，不然無法輸入
-      setIsCorrect(false);
-      setHasNextHint(true);
+      resetToEmptyState();
       setQuestion(result.next_question);
-      setVisibleHintCount(result.next_question.hints_revealed);
-      setAnswered(false);
+      setVisibleHintCount(result.next_question.hints_revealed);      
       setHints([result.next_question.hint.hint_text]);
-      setUserAnswer('');
+      setHasNextHint(true);
     } 
     catch (error) {
       console.error('取得下一題失敗：', error);
@@ -167,13 +171,11 @@ export function Quiz({questionType, questionCount}) {
         return;
       }
       // 跟下一題的邏輯一樣，換到下一題的時候記得把 isCorrect 設回 false，不然無法輸入
-      setIsCorrect(false);
+      resetToEmptyState();
       setHasNextHint(true);
       setVisibleHintCount(result.next_question.hints_revealed);
       setQuestion(result.next_question);
-      setHints([result.next_question.hint.hint_text]);
-      setUserAnswer('');
-      setAnswered(false);
+      setHints([result.next_question.hint.hint_text]);      
     } 
     catch (error) {
       console.error('跳過題目失敗：', error);

@@ -12,33 +12,24 @@
 
   <body class="game-entry-page">
     <main class="game-entry-main">
-      <section
-        id="game-setup"
-        class="setup-card"
-        aria-labelledby="game-setup-title"
-      >
+      <section id="game-setup" class="setup-card" aria-labelledby="game-setup-title">
+        <a class="back-to-home-link" href="/index.html">          
+          <span>回到登入介面</span>
+        </a>
         <p class="setup-eyebrow">Test your anime knowledge</p>
         <h1 id="game-setup-title">Anime Quiz</h1>
         <p class="setup-description">
           選擇喜歡的題型與題數，準備開始挑戰。
         </p>
 
-        <form
-          class="setup-form"
-          action="/quiz.html"
-          method="get"
-        >
+        <form class="setup-form" action="/quiz.html" method="get">
           <div class="form-field">
             <div class="field-heading">
               <label for="question-type">題型</label>
               <span>選擇本次挑戰方式</span>
             </div>
             <div class="select-control">
-              <select
-                class="setup-select"
-                id="question-type"
-                name="question-type"
-              >
+              <select class="setup-select" id="question-type" name="question-type">
                 <option value="five_hints">五提示猜角色</option>
               </select>
             </div>
@@ -50,11 +41,7 @@
               <span>大約每題需要 30 秒</span>
             </div>
             <div class="select-control">
-              <select
-                class="setup-select"
-                id="question-count"
-                name="question-count"
-              >
+              <select class="setup-select" id="question-count" name="question-count">
                 <option value="5">5 題・快速挑戰</option>
                 <option value="10">10 題・標準模式</option>
                 <option value="15">15 題・進階挑戰</option>

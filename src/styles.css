@@ -375,6 +375,28 @@ h1 {
   animation: spin 800ms linear infinite;
 }
 
+.back-to-home-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 28px;
+  color: #625a73;
+  font-size: 14px;
+  text-decoration: none;
+  transition: color 160ms ease, transform 160ms ease;
+}
+
+.back-to-home-link:hover {
+  color: #6d4aff;
+  transform: translateX(-3px);
+}
+
+.back-to-home-link:focus-visible {
+  outline: 4px solid rgb(118 87 255 / 24%);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
 @keyframes cardEnter {
   from {
     opacity: 0;
