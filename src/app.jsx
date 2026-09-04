@@ -1,34 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from './supabase.js';
+import { apiRequest } from './client/apiRequest.js';
 import './auth.css';
-
-async function apiRequest(url, { method = 'GET', body, headers = {} } = {}) {
-   const requestOptions = {
-      method,
-      headers: { ...headers },
-   };
-
-   if (body !== undefined) {
-      requestOptions.body = JSON.stringify(body);
-      requestOptions.headers['Content-Type'] =
-      'application/json';
-   }
-
-   const response = await fetch(url, requestOptions);
-   const contentType =
-      response.headers.get('content-type') ?? '';
-   const result = contentType.includes('application/json')
-      ? await response.json()
-      : null;
-
-   if (!response.ok) {
-      throw new Error(
-      result?.message || `Request failed (${response.status})`
-      );
-   }
-
-   return result;
-}
 
 async function saveAuthSession(authResult) {
    if (!authResult.session) {
@@ -97,10 +70,25 @@ export default function App() {
       }
    }
 
-   async function signInAsGuest(event) {
-      event.preventDefault();
+   async function signInAsGuest() {         
       console.log('以來賓身份登入中...');
+      console.log('目前登入還沒實作好');
       
+      try {
+         // 目前登入還沒弄好
+         const authResult = await apiRequest('/api/auth/guest', {
+            method: 'POST',
+         });
+
+         await saveAuthSession(authResult);
+         console.log('以來賓身份登入成功！');
+
+         window.location.assign('./gameEntry.html');
+      }
+      catch (error) {
+         console.error('以來賓身份登入失敗：', error);
+         alert(`以來賓身份登入失敗：${error.message}`);
+      }
    }
 
    function switchToSignIn() {
@@ -118,25 +106,27 @@ export default function App() {
 
             <form className='auth-form' onSubmit={mode === 'sign-in' ? signIn: signUp} hidden={mode !== 'sign-in' && mode !== 'sign-up'}>
                <label htmlFor="email">電子郵件</label>
-               <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="Email:" required />
+               <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="Email:" disabled />
                <label htmlFor="password">密碼</label>
-               <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="Password:" required />
+               <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="Password:" disabled />
 
-               <div className='auth-actions'>                     
+               <div className='auth-actions'>
+                  <p>目前登入還沒做好，可以以來賓直接進行遊戲</p>
                   {mode === 'sign-in' ? 
                   (
                      <>
                      <div className='auth-action-row'>
-                        <button className='auth-submit-button' onClick={signIn} type="submit">登入</button>
-                        <button className='auth-submit-button' onClick={() => setMode('sign-up')} type="submit">註冊</button>
+                        <button className='auth-submit-button' onClick={signIn} type="submit" disabled>登入</button>
+                        <button className='auth-submit-button' onClick={() => setMode('sign-up')} type="submit" disabled>註冊</button>
                      </div>
-                     <button className="guest-button" onClick={signInAsGuest} type="submit">以來賓身份進行遊戲</button>
+                     
+                     <button className="guest-button" onClick={signInAsGuest} type="button">以來賓身份進行遊戲</button>
                      </>
                   ) : 
                   (
                      <>
-                     <button className='auth-submit-button' onClick={signUp} type="submit">註冊</button>
-                     <button className='auth-submit-button' onClick={switchToSignIn} type="submit">返回登入</button>
+                     <button className='auth-submit-button' onClick={signUp} type="submit" disabled>註冊</button>
+                     <button className='auth-submit-button' onClick={switchToSignIn} type="submit" disabled>返回登入</button>
                      </>
                   )
                   }

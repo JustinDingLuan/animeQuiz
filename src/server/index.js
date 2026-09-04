@@ -1,4 +1,7 @@
 import express from 'express';
+import path from 'node:path';
+import 'dotenv/config';
+
 import {
   checkQuizAnswer,
   createQuizSession,
@@ -13,13 +16,26 @@ import {
   signIn,
   signInAsGuest,
   signOut,
+  requireAuth
 } from './auth.js';
 // 透過 express 建立一個 HTTP server，並且設定好各種 API endpoint，讓前端可以透過 HTTP request 來跟後端互動。
 const app = express();
 app.use(express.json());
 
+const frontEndPath = path.resolve(process.cwd(), 'dist');
+app.use(express.static(frontEndPath));
+
+const port =
+  Number(process.env.PORT) || 3000;
+
+app.listen(port, '0.0.0.0', () => {
+  console.log(
+    `Backend running at http://localhost:${port}`
+  );
+});
+
 app.post(
-  '/api/auth/sign-up',
+  '/api/auth/sign-up',  
   async (request, response) => {
     const { email, password } = request.body ?? {};
 
@@ -53,7 +69,7 @@ app.post(
 );
 
 app.post(
-  '/api/auth/sign-in',
+  '/api/auth/sign-in',  
   async (request, response) => {
     const { email, password } = request.body ?? {};
 
@@ -315,8 +331,4 @@ app.get(
   }
 );
 
-app.listen(3000, '0.0.0.0', () => {
-   console.log(
-      'Backend running at http://localhost:3000'
-   );
-});
+

@@ -156,13 +156,20 @@ export async function revealNextHint(sessionId) {
       throw new Error('已經沒有更多提示了');
    }
    
+   
    // 揭露提示後，可以拿到的總分變少  
+   const updates = {
+      hints_revealed: nextHintOrder,      
+   };
    const newScore = Math.max(100, 600 - nextHintOrder * 100);
-
+   
+   if (!sessionQuestions.is_correct === true) {
+      updates.score = newScore;
+   }
    // 更新資料庫裡面關於 question 的紀錄
    const {data: updatedQuestion, error: updateQuestionError} = await supabaseAdmin
       .from('quiz_session_questions')
-      .update({ hints_revealed: nextHintOrder, score: newScore })
+      .update(updates)
       .eq('session_id', sessionQuestions.session_id)
       .eq('question_id', sessionQuestions.question_id)
       .eq('hints_revealed', sessionQuestions.hints_revealed) // 確保沒有 race condition
@@ -194,6 +201,21 @@ export async function revealNextHint(sessionId) {
       available_score: newScore,
       has_next_hint: nextHintOrder < 5,
    }   
+}
+
+async function getCurrentTotalScore(sessionId) {
+   const {data: totalScore, error: currentScoreError} = await supabaseAdmin
+      .from('quiz_session_questions')
+      .select('score')
+      .eq('session_id', sessionId)
+      .eq('is_correct', true);
+
+   if (currentScoreError) {
+      console.error('取得目前總分失敗：', currentScoreError);
+      throw currentScoreError;
+   }
+   const currentTotalScore = totalScore.reduce((sum, item) => sum + item.score, 0);   
+   return currentTotalScore;
 }
 
 export async function checkQuizAnswer(sessionId, userAnswer) {
@@ -234,7 +256,7 @@ export async function checkQuizAnswer(sessionId, userAnswer) {
 
    // quizAnswer.js 只負責依 question_id 比對角色名稱與 aliases。
    const isCorrect = await checkAnswer(sessionQuestions.question_id, userAnswer);
-
+   
    // 好像不用 update score，因為在揭露提示的時候就已經更新 score 了
    const {data: updatedQuestion, error: updateQuestionError} = await supabaseAdmin
       .from('quiz_session_questions')
@@ -261,7 +283,10 @@ export async function checkQuizAnswer(sessionId, userAnswer) {
       throw updateActivityError;
    }
 
+   const currentTotalScore = await getCurrentTotalScore(sessionId);
+
    return {
+      current_total_score: currentTotalScore,
       question_order: sessionQuestions.question_order,
       is_correct: updatedQuestion.is_correct,
       score: updatedQuestion.is_correct
@@ -355,22 +380,7 @@ export async function nextQuestion(sessionId) {
    const currentQuestion = await getSessionQuestion(sessionId, null, 'active', true);
 
    // 更新目前題目的狀態為 answered
-   const updatedQuestion = await updateSessionQuestion(sessionId, currentQuestion.question_order, 'active', { status: 'answered' });
-
-   // 好像沒有需要嗎? 不知道顯示分數由前端處理會怎樣?
-   const {data: totalScore, error: currentScoreError} = await supabaseAdmin
-      .from('quiz_session_questions')
-      .select('score')
-      .eq('session_id', sessionId)      
-      .eq('status', 'answered')
-      .eq('is_correct', true);
-
-   if (currentScoreError) {
-      console.error('取得目前總分失敗：', currentScoreError);
-      throw currentScoreError;
-   }
-
-   const currentTotalScore = totalScore.reduce((sum, item) => sum + item.score, 0);   
+   const updatedQuestion = await updateSessionQuestion(sessionId, currentQuestion.question_order, 'active', { status: 'answered' });   
 
    const nextQuestionOrder = currentQuestion.question_order + 1;
    const nextQuestion = await getSessionQuestion(sessionId, nextQuestionOrder, 'pending', false);
@@ -381,7 +391,7 @@ export async function nextQuestion(sessionId) {
       const updatedSession = await updateSessionStatus(sessionId, 'completed');
 
       return {
-         current_total_score: currentTotalScore,
+         // current_total_score: currentTotalScore,
          message: '已經是最後一題',
          game_over: true,
       };
@@ -415,7 +425,7 @@ export async function nextQuestion(sessionId) {
    }
 
    return {
-      current_total_score: currentTotalScore,
+      // current_total_score: currentTotalScore,
       next_question: {
          question_id: nextQuestion.question_id,
          question_order: nextQuestion.question_order,

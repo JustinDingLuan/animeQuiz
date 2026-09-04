@@ -21,8 +21,20 @@
 ## 20260831
 筆記:
 - useRef 不會觸發 re-render, useState 會
+- React 會重新 render 是因為 a. useState 的 setter 被呼叫 b. componenet 收到新的 props
 - react 呼叫 component 的時候，只會傳入一個物件，所以我們給參數也要用物件的方式給 -> {questionType, questionCount}
 - const [hints, setHints] = useState([])，這個 function 就會緊緊地跟著這個 hints 的變數。  
 即便我用 setHints((prevHints) => {return [...prevHints, result.hint]}) 也是一樣，react 會把這個 function 跟著的變數(hints) 當作 prevHints 傳入這個箭頭函數，prevHints 就是 locally 重新命名而已
 - React 框架中，Export Function name 第一個字要大寫
 
+## 20260903
+部署到某個固定網域上
+vite.config 裡面要寫好 build 要做的事-rollupOptions()，input 是告訴 rollupOptions 這個函式有哪些 html 是可用入口
+server 只會用在 dev command 的時候
+
+## 20260904
+- createClient 只是告訴我們是跟哪個 supabase 專案互動，signInWithPassword 才是把 email 跟 password 傳給 supabase auth 進行驗證
+- session?.access_token 是 js 裡面的 optional chaining，如果物件存在就讀取 access_token，沒有就回傳 undefined
+- 新增 requireAuth 在跟遊戲相關的 api 上就好，不用放在跟登入有關的 api 上
+- 原本的寫法如果前端連按兩下送出答案並且答對的話，總分會加兩次
+- 目前的分數計算，如果前一階段答題完後繼續揭露提示，分數會變少

@@ -1,30 +1,8 @@
 import './styles.css';
 import './quiz.css';
-import { useState, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { apiRequest } from './client/apiRequest.js';
 
-
-async function apiRequest(url, {method = 'GET', body, headers={}} = {}) {
-  const requestOptions = {
-    method,
-    headers: {
-      ...headers,
-    },
-  };
-
-  if (body !== undefined) {
-    requestOptions.body = JSON.stringify(body);
-    requestOptions.headers['Content-Type'] = 'application/json';
-  }
-
-  const response = await fetch(url, requestOptions);
-  const result = await response.json();
-
-  if (!response.ok) {
-    throw new Error(result?.message || response.statusText);
-  }
-
-  return result;
-}
 
 async function requestQuizSession(questionType, questionCount) {  
   const result = await apiRequest('/api/create-quiz-session', {
@@ -44,6 +22,9 @@ export function Quiz({questionType, questionCount}) {
   // questionCount 在建立 session 的時候就固定了，不用去更動他
   const [visibleHintCount, setVisibleHintCount] = useState(0);
   const [answered, setAnswered] = useState(false);
+
+  const submittingRef = useRef(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
   const [currentScore, setCurrentScore] = useState(0);
   // 
@@ -63,6 +44,10 @@ export function Quiz({questionType, questionCount}) {
         setQuestion(currentQuestion);
         setVisibleHintCount(currentQuestion.hints_revealed);
         setAnswered(false);
+        setCurrentScore(0);
+        setUserAnswer('');
+        setIsCorrect(false);
+        setHasNextHint(true);
         sessionStorage.setItem('quizSessionId', session.session_id);
 
         setHints([currentQuestion.hint.hint_text]);
@@ -117,6 +102,7 @@ export function Quiz({questionType, questionCount}) {
       }
       // 換到下一題的時候記得把 isCorrect 設回 false，不然無法輸入
       setIsCorrect(false);
+      setHasNextHint(true);
       setQuestion(result.next_question);
       setVisibleHintCount(result.next_question.hints_revealed);
       setAnswered(false);
@@ -129,14 +115,18 @@ export function Quiz({questionType, questionCount}) {
   }
 
   async function submitQuizAnswer(event) {
-    event.preventDefault();
+    event.preventDefault();    
+    if (submittingRef.current) {
+        return;
+    }
+    submittingRef.current = true;
+    setIsSubmitting(true);
 
     const normalizedUserAnswer = userAnswer.trim();
-
     if (!sessionId || !question || answered || !normalizedUserAnswer) {
       return;
     }
-
+    
     try {
       const result = await requestCheckAnswer(sessionId, normalizedUserAnswer);
       setResultMessage('');
@@ -147,7 +137,8 @@ export function Quiz({questionType, questionCount}) {
         console.log(`回答正確！獲得 ${result.score} 分`);
 
         setAnswered(true);
-        setCurrentScore((prevScore) => {return prevScore + result.score});        
+        // setCurrentScore((prevScore) => {return prevScore + result.score});
+        setCurrentScore(result.current_total_score);
       } 
       else {        
         setResultMessage(`回答錯誤！目前答對可獲得 ${result.available_score} 分`);
@@ -156,6 +147,10 @@ export function Quiz({questionType, questionCount}) {
     } 
     catch (error) {
       console.error('提交答案失敗：', error);
+    }
+    finally {
+      setIsSubmitting(false);
+      submittingRef.current = false;
     }
   }
 
@@ -173,11 +168,12 @@ export function Quiz({questionType, questionCount}) {
       }
       // 跟下一題的邏輯一樣，換到下一題的時候記得把 isCorrect 設回 false，不然無法輸入
       setIsCorrect(false);
-      setQuestion(result.next_question);
+      setHasNextHint(true);
       setVisibleHintCount(result.next_question.hints_revealed);
-      setAnswered(false);
+      setQuestion(result.next_question);
       setHints([result.next_question.hint.hint_text]);
       setUserAnswer('');
+      setAnswered(false);
     } 
     catch (error) {
       console.error('跳過題目失敗：', error);
@@ -239,7 +235,7 @@ export function Quiz({questionType, questionCount}) {
             className="quiz-button quiz-button-hint"
             type="button"
             onClick={showNextHint}
-            disabled={!hasNextHint}
+            disabled={isSubmitting || !hasNextHint}
           >
             {hasNextHint ? '撕開下一個提示' : '提示已全部揭露'}
           </button>
@@ -255,12 +251,12 @@ export function Quiz({questionType, questionCount}) {
               type="text"
               placeholder="輸入角色名稱"
               autoComplete="off"
-              disabled={isCorrect}
+              disabled={isSubmitting || isCorrect}
             />
             <button
               className="quiz-button quiz-button-primary"
               type="submit"
-              disabled={isCorrect || !userAnswer.trim()}
+              disabled={isSubmitting || isCorrect || !userAnswer.trim()}
             >
               提交答案
             </button>
@@ -280,7 +276,7 @@ export function Quiz({questionType, questionCount}) {
               className="quiz-button quiz-button-primary"
               type="button"
               onClick={nextQuestion}
-              disabled={!hasNextQuestion}
+              disabled={isSubmitting || !hasNextQuestion}
             >
               下一題
             </button>
@@ -289,7 +285,7 @@ export function Quiz({questionType, questionCount}) {
               className="quiz-button quiz-button-skip"
               type="button"
               onClick={skipQuestion}
-              disabled={!hasNextQuestion}
+              disabled={isSubmitting || !hasNextQuestion}
             >
               跳過此題（本題 0 分）
             </button>

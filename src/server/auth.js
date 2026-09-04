@@ -102,3 +102,32 @@ export async function signOut(accessToken) {
       throw error;
    }
 }
+
+export async function requireAuth(request, response, nextAction) {
+   const authrorization = request.get('Authorization') ?? '';
+
+   if (!authrorization.startsWith('Bearer ')) {
+      return response.status(401).json({
+         message: '缺少 Bearer token',
+      });
+   }
+   // 為什麼是 7？因為 "Bearer " 的長度是 7
+   const accessToken = authrorization.slice(7);
+
+   const { data: user, error } =
+      await supabaseAdmin.auth.admin.getUser(accessToken);
+
+   if (error) {
+      return response.status(401).json({
+         message: '無效或過期的登入憑證',
+      });
+   }
+
+   request.user = {
+      id: user.user.id,
+      email: user.user.email ?? null,
+      is_anonymous: user.user.is_anonymous === true,
+   };
+
+   nextAction();
+}

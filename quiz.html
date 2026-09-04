@@ -1,76 +1,20 @@
-<!-- <!doctype html>
+<!doctype html>
 <html lang="zh-Hant">
   <head>
     <meta charset="UTF-8" />
-
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0"
     />
-
     <title>Anime Quiz</title>
   </head>
 
-  <body>
-    <main>
-      <section id="quiz-section">
-        <header>
-          <a href="/gameEntry.html">返回遊戲設定</a>
-
-          <h1>五提示猜角色</h1>
-
-          <p id="quiz-progress"></p>
-        </header>
-
-        <p id="quiz-status">正在準備題目……</p>
-
-        <div id="quiz-content" hidden>
-          <p>
-            已顯示
-            <span id="quiz-hint-count">1</span>
-            / 5 個提示
-          </p>
-
-          <ol id="quiz-hint-list"></ol>
-
-          <button id="next-hint-button" type="button">
-            下一個提示
-          </button>
-
-          <form id="quiz-answer-form">
-            <label for="quiz-answer">
-              你的答案
-            </label>
-
-            <input
-              id="quiz-answer"
-              type="text"
-              placeholder="輸入你的答案"
-              autocomplete="off"
-            />
-
-            <button type="submit"> 回答 </button>
-          </form>
-
-          <p id="quiz-result"></p>
-
-          <button
-            id="next-question-button"
-            type="button"
-            hidden
-          >
-            下一題
-          </button>
-        </div>
-      </section>
-    </main>
+  <body class="game-page">
+    <div id="root"></div>
 
     <script
       type="module"
-      src="/src/quizPage.js"
+      src="/src/quizPage.jsx"
     ></script>
   </body>
-</html> -->
-
-
-
+</html>
