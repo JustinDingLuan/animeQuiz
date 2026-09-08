@@ -21,10 +21,15 @@ export function Quiz({questionType, questionCount}) {
   const [question, setQuestion] = useState(null);
   // questionCount 在建立 session 的時候就固定了，不用去更動他
   const [visibleHintCount, setVisibleHintCount] = useState(0);
-  const [answered, setAnswered] = useState(false);
+  // const [answered, setAnswered] = useState(false);
 
-  const submittingRef = useRef(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  // const submittingRef = useRef(false);
+  // const [isSubmitting, setIsSubmitting] = useState(false);
+  // 控制所有按鈕
+  const actionLock = useRef(false);
+  const [pendingAction, setPendingAction] = useState(null);
+  const isBusy = pendingAction !== null;
+  
   const [isCorrect, setIsCorrect] = useState(false);
   const [currentScore, setCurrentScore] = useState(0);
   // 
@@ -69,26 +74,47 @@ export function Quiz({questionType, questionCount}) {
       </main>
     );
   }
+  
 
-  function resetToEmptyState() {
-    setAnswered(false);
+  function resetToEmptyState() {    
+    // setAnsered(false);
+    // setIsSubmitting(false);        
     setIsCorrect(false);    
-    setIsSubmitting(false);        
     setUserAnswer('');
     setResultMessage('');    
   }
 
+  async function quizAction(actionName, actionFunction) {
+    if (actionLock.current) {
+      return;
+    }
+
+    // 先搶到的動作會先執行，然後把門鎖起來
+    actionLock.current = actionName;
+    setPendingAction(actionName);
+    // 最後再把門鎖打開，讓下一個動作可以執行
+    try {
+      await actionFunction();
+    }
+    finally {
+      actionLock.current = false;
+      setPendingAction(null);
+    }
+  }
+
   async function showNextHint() {
     try {
-      const result = await requestNextHint(sessionId);
-      if (!result.hint) {
-        setHasNextHint(false);
-        console.log('沒有更多提示了');
-        return;
-      }
-      
-      setHints((prevHints) => {return [...prevHints, result.hint.hint_text]});
-      setVisibleHintCount(result.hints_revealed);
+      await quizAction('showNextHint', async () => {
+        const result = await requestNextHint(sessionId);
+        if (!result.hint) {
+          console.log('沒有更多提示了');
+          setHasNextHint(false);
+          return;
+        }
+        
+        setHints((prevHints) => {return [...prevHints, result.hint.hint_text]});
+        setVisibleHintCount(result.hints_revealed);
+      });
     } 
     catch (error) {
       console.error('取得下一個提示失敗：', error);
@@ -97,22 +123,24 @@ export function Quiz({questionType, questionCount}) {
 
   async function nextQuestion() {
     try {
-      const result = await requestNextQuestion(sessionId);
+      await quizAction('nextQuestion', async () => {
+        const result = await requestNextQuestion(sessionId);
 
-      if (result.game_over) {
-        setHasNextQuestion(false);
-        console.log('已經沒有下一題了');
-        const encodedSessionId = encodeURIComponent(sessionId);
-        window.location.assign(`/gameResult.html?sessionId=${encodedSessionId}`);
-        return;
-      }
-      // 換到下一題的時候記得把 isCorrect 設回 false，不然無法輸入
-      resetToEmptyState();
-      setQuestion(result.next_question);
-      setVisibleHintCount(result.next_question.hints_revealed);      
-      setHints([result.next_question.hint.hint_text]);
-      setHasNextHint(true);
-    } 
+        if (result.game_over) {
+          setHasNextQuestion(false);
+          console.log('已經沒有下一題了');
+          const encodedSessionId = encodeURIComponent(sessionId);
+          window.location.assign(`/gameResult.html?sessionId=${encodedSessionId}`);
+          return;
+        }
+        // 換到下一題的時候記得把 isCorrect 設回 false，不然無法輸入
+        resetToEmptyState();
+        setQuestion(result.next_question);
+        setVisibleHintCount(result.next_question.hints_revealed);      
+        setHints([result.next_question.hint.hint_text]);
+        setHasNextHint(true);
+      }); 
+    }
     catch (error) {
       console.error('取得下一題失敗：', error);
     }
@@ -120,63 +148,66 @@ export function Quiz({questionType, questionCount}) {
 
   async function submitQuizAnswer(event) {
     event.preventDefault();    
-    if (submittingRef.current) {
-        return;
-    }
-    submittingRef.current = true;
-    setIsSubmitting(true);
+    // if (submittingRef.current) {
+    //     return;
+    // }
+    // submittingRef.current = true;
+    // setIsSubmitting(true);
 
     const normalizedUserAnswer = userAnswer.trim();
-    if (!sessionId || !question || answered || !normalizedUserAnswer) {
+    if (!sessionId || !question || !normalizedUserAnswer) {
+      console.log('缺少必要的參數', {sessionId, question, normalizedUserAnswer});
+      return;
+    }
+
+    if (isCorrect) {
+      console.log('已經答對了，無法再提交答案');
       return;
     }
     
     try {
-      const result = await requestCheckAnswer(sessionId, normalizedUserAnswer);
-      setResultMessage('');
+      await quizAction('submitQuizAnswer', async () => {
+        const result = await requestCheckAnswer(sessionId, normalizedUserAnswer);
+        // setResultMessage('');
 
-      if (result.is_correct) {
-        setIsCorrect(true);
-        setResultMessage(`回答正確！獲得 ${result.score} 分`);
-        console.log(`回答正確！獲得 ${result.score} 分`);
-
-        setAnswered(true);
-        // setCurrentScore((prevScore) => {return prevScore + result.score});
-        setCurrentScore(result.current_total_score);
-      } 
-      else {        
-        setResultMessage(`回答錯誤！目前答對可獲得 ${result.available_score} 分`);
-        setUserAnswer('');
-      }
-    } 
+        if (result.is_correct) {
+          setIsCorrect(true);
+          setResultMessage(`回答正確！獲得 ${result.score} 分`);
+          setCurrentScore(result.current_total_score);
+          console.log(`回答正確！獲得 ${result.score} 分`);
+        } 
+        else {        
+          setResultMessage(`回答錯誤！目前答對可獲得 ${result.available_score} 分`);
+          setUserAnswer('');
+        }
+      });
+    }
     catch (error) {
       console.error('提交答案失敗：', error);
-    }
-    finally {
-      setIsSubmitting(false);
-      submittingRef.current = false;
-    }
+    }    
   }
 
-  async function skipQuestion() {
+  async function skipQuestion() {    
     try {
-      const result = await requestSkipQuestion(sessionId);
-      if (result.game_over) {
-        setHasNextQuestion(false);
-        console.log('已經沒有下一題了');
+      await quizAction('skipQuestion', async () => {
+        const result = await requestSkipQuestion(sessionId);
+        if (result.game_over) {
+          setHasNextQuestion(false);
+          console.log('已經沒有下一題了');
 
-        const encodedSessionId = encodeURIComponent(sessionId);
-        window.location.assign(`/gameResult.html?sessionId=${encodedSessionId}`);
+          const encodedSessionId = encodeURIComponent(sessionId);
+          window.location.assign(`/gameResult.html?sessionId=${encodedSessionId}`);
 
-        return;
-      }
-      // 跟下一題的邏輯一樣，換到下一題的時候記得把 isCorrect 設回 false，不然無法輸入
-      resetToEmptyState();
-      setHasNextHint(true);
-      setVisibleHintCount(result.next_question.hints_revealed);
-      setQuestion(result.next_question);
-      setHints([result.next_question.hint.hint_text]);      
-    } 
+          return;
+        }
+        // 跟下一題的邏輯一樣，換到下一題的時候記得把 isCorrect 設回 false，不然無法輸入
+        resetToEmptyState();
+        setHasNextHint(true);
+        setVisibleHintCount(result.next_question.hints_revealed);
+        setQuestion(result.next_question);
+        setHints([result.next_question.hint.hint_text]);      
+      });
+    }
     catch (error) {
       console.error('跳過題目失敗：', error);
     }
@@ -237,7 +268,7 @@ export function Quiz({questionType, questionCount}) {
             className="quiz-button quiz-button-hint"
             type="button"
             onClick={showNextHint}
-            disabled={isSubmitting || !hasNextHint}
+            disabled={isBusy || !hasNextHint}
           >
             {hasNextHint ? '撕開下一個提示' : '提示已全部揭露'}
           </button>
@@ -253,12 +284,12 @@ export function Quiz({questionType, questionCount}) {
               type="text"
               placeholder="輸入角色名稱"
               autoComplete="off"
-              disabled={isSubmitting || isCorrect}
+              disabled={isBusy || isCorrect}
             />
             <button
               className="quiz-button quiz-button-primary"
               type="submit"
-              disabled={isSubmitting || isCorrect || !userAnswer.trim()}
+              disabled={isBusy || isCorrect || !userAnswer.trim()}
             >
               提交答案
             </button>
@@ -273,12 +304,12 @@ export function Quiz({questionType, questionCount}) {
         </p>
         
         <div className="quiz-footer-action">
-          {answered ? (
+          {isCorrect ? (
             <button
               className="quiz-button quiz-button-primary"
               type="button"
               onClick={nextQuestion}
-              disabled={isSubmitting || !hasNextQuestion}
+              disabled={isBusy || !hasNextQuestion}
             >
               下一題
             </button>
@@ -287,7 +318,7 @@ export function Quiz({questionType, questionCount}) {
               className="quiz-button quiz-button-skip"
               type="button"
               onClick={skipQuestion}
-              disabled={isSubmitting || !hasNextQuestion}
+              disabled={isBusy || !hasNextQuestion}
             >
               跳過此題（本題 0 分）
             </button>

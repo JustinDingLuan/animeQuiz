@@ -22,6 +22,7 @@ export async function createQuizSession(questionType, questionCount) {
    }
 
    if (questions.length < questionCount) {
+      console.log(`題庫中 ${questionType} 題目數量不足，只有 ${questions.length} 題`);
       throw new Error(
          `題庫中 ${questionType} 題目數量不足`
       );
@@ -40,7 +41,8 @@ export async function createQuizSession(questionType, questionCount) {
       .limit(1)
       .single();
 
-   if (firstHintError) {
+   if (firstHintError) {      
+      console.log(firstHintError);
       throw firstHintError;
    }
    // 建立 session 的時間
@@ -60,6 +62,7 @@ export async function createQuizSession(questionType, questionCount) {
       .single();
 
    if (sessionError) {
+      console.log(sessionError);
       throw sessionError;
    }
 
@@ -120,10 +123,12 @@ export async function revealNextHint(sessionId) {
       .single();
       
    if (sessionQuestionsError) {
+      console.log('取得進行中的題目失敗：', sessionQuestionsError);
       throw sessionQuestionsError;
    }
 
-   if (!sessionQuestions) {
+   if (!sessionQuestions) {      
+      console.log('找不到進行中的題目');
       throw new Error('找不到進行中的題目');
    }
    
@@ -164,7 +169,7 @@ export async function revealNextHint(sessionId) {
    };
    const newScore = Math.max(100, 600 - nextHintOrder * 100);
 
-   console.log(`已經答對了嗎? ${sessionQuestions.is_correct}`);
+   // console.log(`已經答對了嗎? ${sessionQuestions.is_correct}`);
    if (!sessionQuestions.is_correct) {
       updates.score = newScore;
    }
@@ -178,7 +183,8 @@ export async function revealNextHint(sessionId) {
       .select()
       .single();
 
-   if (updateQuestionError) {
+   if (updateQuestionError) {      
+      console.log('更新題目紀錄失敗：', updateQuestionError);
       throw updateQuestionError;
    }
 
@@ -191,6 +197,7 @@ export async function revealNextHint(sessionId) {
       .single();
 
    if (updateTimeError) {
+      console.log('更新最後互動時間失敗：', updateTimeError);
       throw updateTimeError;
    }
 
@@ -213,7 +220,7 @@ async function getCurrentTotalScore(sessionId) {
       .eq('is_correct', true);
 
    if (currentScoreError) {
-      console.error('取得目前總分失敗：', currentScoreError);
+      console.log('取得目前總分失敗：', currentScoreError);
       throw currentScoreError;
    }
    const currentTotalScore = totalScore.reduce((sum, item) => sum + item.score, 0);   
@@ -312,14 +319,7 @@ async function getSessionQuestion(sessionId, questionOrder, status, mustExist=tr
 
    let query = supabaseAdmin
       .from('quiz_session_questions')
-      .select(`
-         session_id,
-         question_id,
-         question_order,
-         hints_revealed,
-         status,
-         score
-      `)
+      .select('*')
       .eq('session_id', sessionId)
    
    if (questionOrder !== null) {
