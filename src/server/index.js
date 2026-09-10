@@ -195,11 +195,11 @@ app.post(
 app.post(
   '/api/create-quiz-session',  
   async (request, response) => {
-    const { questionType, questionCount } = request.body;
+    const { quizMode, questionCount } = request.body;
     
     try {
       const quizSession = await createQuizSession(
-        questionType,
+        quizMode,
         questionCount
       );
 

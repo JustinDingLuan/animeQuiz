@@ -37,6 +37,36 @@ async function checkCharacterAnswer(questionId, userAnswer) {
    );
 }
 
+async function checkAnimeAnswer(questionId, userAnswer) {
+   const {data: groundTruth, error:relationError} = await supabaseAdmin.from('anime_question_answers')
+   .select('anime_id')
+   .eq('question_id', questionId)
+   .single();
+
+   if (relationError) {
+      console.log(`relationError: ${relationError}`);
+      throw relationError;
+   }
+
+   const {data: anime, error: animeError} = await supabaseAdmin.from('animes')
+   .select('title, aliases')
+   .eq('id', groundTruth.anime_id)
+   .single();
+
+   if (animeError) {
+      console.log(`animeError: ${animeError}`);
+      throw animeError;
+   }
+   
+   const normalizedUserAnswer = normalizeAnswer(userAnswer);
+   const acceptedAnswers = [anime.title, ...(anime.aliases ?? [])];
+   console.log(`acceptedAnswers: ${acceptedAnswers}, normalizedUserAnswer: ${normalizedUserAnswer}`);
+
+   return acceptedAnswers.some(
+      (answer) => {return normalizeAnswer(answer) === normalizedUserAnswer;}
+   );
+}
+
 export async function checkAnswer(questionId, userAnswer) {
    const {data: question, error: questionError} = await supabaseAdmin.from('questions')
    .select('answer_type')
@@ -52,9 +82,10 @@ export async function checkAnswer(questionId, userAnswer) {
    if (question.answer_type === 'character') {
       return await checkCharacterAnswer(questionId, userAnswer);
    } 
+   else if (question.answer_type === 'anime') {
+      return await checkAnimeAnswer(questionId, userAnswer);
+   }
    else {
       throw new Error(`不支援的 answer_type: ${question.answer_type}`);
    }
-   
-   return false;
 }

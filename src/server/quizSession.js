@@ -1,6 +1,18 @@
 import {supabaseAdmin} from './databaseAdmin.js';
 import {checkAnswer} from './quizAnswer.js';
 
+const quizModes = {
+   five_hints_guess_character: {
+      question_type: 'five_hints',
+      answer_type: 'character',
+   },
+
+   five_hints_guess_anime: {
+      question_type: 'five_hints',
+      answer_type: 'anime',
+   },
+}
+
 function shuffle(array) {
    const result = [...array];
 
@@ -12,19 +24,24 @@ function shuffle(array) {
    return result;
 }
 
-export async function createQuizSession(questionType, questionCount) {
+export async function createQuizSession(quizMode, questionCount) {
+   console.log(quizMode);
+   console.log(quizModes[quizMode]);
+   const selectedMode = quizModes[quizMode];
+   
    const { data: questions, error } = await supabaseAdmin
       .from('questions')
       .select('id')
-      .eq('question_type', questionType);
+      .eq('question_type', selectedMode.question_type)
+      .eq('answer_type', selectedMode.answer_type);
    if (error) {
       throw error;
    }
 
    if (questions.length < questionCount) {
-      console.log(`題庫中 ${questionType} 題目數量不足，只有 ${questions.length} 題`);
+      console.log(`題庫中 ${selectedMode.question_type} 題目數量不足，只有 ${questions.length} 題`);
       throw new Error(
-         `題庫中 ${questionType} 題目數量不足`
+         `題庫中 ${selectedMode.question_type} 題目數量不足`
       );
    }
 
@@ -50,7 +67,8 @@ export async function createQuizSession(questionType, questionCount) {
    const {data: session, error: sessionError} = await supabaseAdmin
       .from('quiz_sessions')
       .insert({
-         question_type: questionType,
+         question_type: selectedMode.question_type,
+         answer_type: selectedMode.answer_type,
          question_count: questionCount,
          status: 'in_progress',
          start: now,

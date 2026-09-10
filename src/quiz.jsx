@@ -3,12 +3,28 @@ import './quiz.css';
 import { useState, useRef, useEffect } from 'react';
 import { apiRequest } from './client/apiRequest.js';
 
+const quizModes = {
+  five_hints_guess_character: {
+    question_type: 'five_hints',
+    answer_type: 'character',
+  },
 
-async function requestQuizSession(questionType, questionCount) {  
+  five_hints_guess_anime: {
+    question_type: 'five_hints',
+    answer_type: 'anime',
+  },
+}
+
+const quizModeLabels = {
+  five_hints_guess_character: '五提示猜角色',
+  five_hints_guess_anime: '五提示猜動畫',
+}
+
+async function requestQuizSession(quizMode, questionCount) {  
   const result = await apiRequest('/api/create-quiz-session', {
     method: 'POST',
     body: {
-      questionType,
+      quizMode,
       questionCount,
     },
   });
@@ -16,7 +32,7 @@ async function requestQuizSession(questionType, questionCount) {
   return result;
 }
 
-export function Quiz({questionType, questionCount}) { 
+export function Quiz({quizMode, questionCount}) { 
   const [sessionId, setSessionId] = useState(null);
   const [question, setQuestion] = useState(null);
   // questionCount 在建立 session 的時候就固定了，不用去更動他
@@ -44,7 +60,7 @@ export function Quiz({questionType, questionCount}) {
       try {
         resetToEmptyState();
 
-        const session = await requestQuizSession(questionType, questionCount);
+        const session = await requestQuizSession(quizMode, questionCount);
         setSessionId(session.session_id);        
 
         const currentQuestion = session.current_question;
@@ -61,7 +77,7 @@ export function Quiz({questionType, questionCount}) {
     }
 
     startQuiz();
-  }, [questionType, questionCount]);
+  }, [quizMode, questionCount]);
   // 一開始的時候拿不到 question，因為 useEffect 還沒跑完，所以先回傳 loading 的資訊給使用者看
   // 等 useEffect 跑完之後，question 就會有值了，畫面就會重新 render
   if (!question) {
@@ -213,6 +229,7 @@ export function Quiz({questionType, questionCount}) {
     }
   }
 
+  let selectedMode = quizModes[quizMode];
   return (
     <main className="quiz-page">
       <section className="quiz-shell" aria-labelledby="quiz-title">
@@ -221,8 +238,8 @@ export function Quiz({questionType, questionCount}) {
             ← 返回遊戲設定
           </a>
 
-          <p className="quiz-eyebrow">ANIME FIVE HINTS</p>
-          <h1 id="quiz-title">五提示猜角色</h1>
+          {/* <p className="quiz-eyebrow">ANIME FIVE HINTS</p> */}
+          <h1 id="quiz-title">{quizModeLabels[quizMode]}</h1>
 
           <div className="quiz-progress-bar" aria-label={`第 ${question.question_order} 題，共 ${questionCount} 題`}>
             <span
@@ -245,7 +262,7 @@ export function Quiz({questionType, questionCount}) {
           <div className="quiz-section-heading">
             <div>
               <p className="quiz-section-kicker">逐步揭密</p>
-              <h2 id="quiz-hints-title">角色提示</h2>
+              <h2 id="quiz-hints-title">{selectedMode.answer_type === 'character' ? '角色' : '動畫'}提示</h2>
             </div>
             <span className="quiz-hint-counter">
               {visibleHintCount}<small>/ 5</small>
@@ -275,14 +292,14 @@ export function Quiz({questionType, questionCount}) {
         </section>
 
         <form className="quiz-answer-card" onSubmit={submitQuizAnswer}>
-          <label htmlFor="quiz-answer">你的答案</label>
+          {/* <label htmlFor="quiz-answer">你的答案</label> */}
           <div className="quiz-answer-row">
             <input
               id="quiz-answer"
               value={userAnswer}
               onChange={(event) => setUserAnswer(event.target.value)}
               type="text"
-              placeholder="輸入角色名稱"
+              placeholder="輸入你的答案"
               autoComplete="off"
               disabled={isBusy || isCorrect}
             />
