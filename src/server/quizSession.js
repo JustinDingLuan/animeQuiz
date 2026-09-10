@@ -104,6 +104,7 @@ export async function createQuizSession(quizMode, questionCount) {
       .from('quiz_session_questions')
       .insert(quizSessionRows); 
    if (quizSessionError) {
+      console.log('建立題目紀錄失敗：', quizSessionError);
       throw quizSessionError;
    }   
       
