@@ -160,6 +160,11 @@ app.post(
 );
 
 app.post(
+  '/api/create-room',
+  requireAuth,
+  // 這邊應該透過 rpc 取得唯一的 roomcode?
+)
+app.post(
   '/api/quiz-session/:sessionId/check-quiz-answer',
   // request.body 是 HTTP request 的資料內容，只是剛好叫做 body，不是 html 裡面的那個 <body>
   async (request, response) => {

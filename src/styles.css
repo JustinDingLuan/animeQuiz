@@ -258,6 +258,7 @@ h1 {
 }
 
 .start-game-button,
+.room-join-button,
 .result-primary-action,
 .result-secondary-action {
   box-sizing: border-box;
@@ -294,13 +295,28 @@ h1 {
   transform: translateY(-2px);
 }
 
+.room-join-button {
+  width: 100%;
+  padding: 14px 20px;
+  border: 1px solid #ded9e8;
+  background: #fff;
+  color: #4f465d;
+}
+
+.room-join-button:hover {
+  background: #f5f2ff;
+  transform: translateY(-2px);
+}
+
 .start-game-button:active,
+.room-join-button:active,
 .result-primary-action:active,
 .result-secondary-action:active {
   transform: translateY(0) scale(0.98);
 }
 
 .start-game-button:focus-visible,
+.room-join-button:focus-visible,
 .result-primary-action:focus-visible,
 .result-secondary-action:focus-visible {
   outline: 4px solid rgb(118 87 255 / 24%);
@@ -444,6 +460,7 @@ h1 {
 
   .setup-select,
   .start-game-button,
+  .room-join-button,
   .result-primary-action,
   .result-secondary-action {
     transition-duration: 0.01ms;
