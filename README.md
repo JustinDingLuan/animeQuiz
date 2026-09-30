@@ -41,3 +41,11 @@ server 只會用在 dev command 的時候
 - 新增 requireAuth 在跟遊戲相關的 api 上就好，不用放在跟登入有關的 api 上
 - 原本的寫法如果前端連按兩下送出答案並且答對的話，總分會加兩次
 - 目前的分數計算，如果前一階段答題完後繼續揭露提示，分數會變少。 解決了，我的 sql 根本沒有拿 is_correct
+
+## 20260910
+要在 onrender 上有 github auto deploy on commit 的話，要在 Git Deployment Credentials 這邊連結到自己的 github repo
+
+## 20260930
+新想法: 區分成電腦判定模式 & 主持人模式
+- 後端 api 尚未新增
+- 前端 css 尚未完全更新，有些 button 的樣式沒設定好
