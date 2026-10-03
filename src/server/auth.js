@@ -115,7 +115,7 @@ export async function requireAuth(request, response, nextAction) {
    const accessToken = authrorization.slice(7);
 
    const { data: user, error } =
-      await supabaseAdmin.auth.admin.getUser(accessToken);
+      await supabaseAdmin.auth.getUser(accessToken);
 
    if (error) {
       return response.status(401).json({

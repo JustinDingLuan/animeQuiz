@@ -18,6 +18,13 @@ import {
   signOut,
   requireAuth
 } from './auth.js';
+
+import {
+  createRoom, 
+  joinRoom
+} from './roomEntry.js';
+
+
 // 透過 express 建立一個 HTTP server，並且設定好各種 API endpoint，讓前端可以透過 HTTP request 來跟後端互動。
 const app = express();
 app.use(express.json());
@@ -163,7 +170,96 @@ app.post(
   '/api/create-room',
   requireAuth,
   // 這邊應該透過 rpc 取得唯一的 roomcode?
+  // user_id 自動放在 authrization header 裡面，後端可以透過 requireAuth 取得 user_id
+  async (request, response) => {
+    const nickname = request.body?.nickname;
+
+    if (nickname === null || nickname === undefined) {
+      nickname = 'host';
+    }
+
+    try {
+      const { sessionId, roomCode, role } = await createRoom({
+        user_id: request.user.id,
+        nickname
+      });
+      return response.status(201).json({ sessionId, roomCode, role });
+    }
+    catch (error) {
+      console.error('創建房間失敗：', error);
+
+      return response.status(error.status ?? 500).json({
+        message: error.message || '創建房間失敗',
+        code: error.code ?? null,
+      });
+    }
+  }
 )
+
+app.post(
+  '/api/join-room',
+  requireAuth,
+  // user_id 自動放在 authrization header 裡面，後端可以透過 requireAuth 取得 user_id  
+  async (request, response) => {
+    const roomCode = request.body?.roomCode;
+    const nickname = request.body?.nickname;
+
+    if (!roomCode || typeof roomCode !== 'string') {
+      return response.status(400).json({
+        message: '缺少 roomCode 或 roomCode 格式錯誤',
+      });
+    }
+
+    if (nickname === null || nickname === undefined || typeof nickname !== 'string' || !nickname.trim()) {
+      nickname = 'player';
+    }    
+    
+    try {
+      const {sessionId, role} = await joinRoom({
+        user_id: request.user.id,
+        roomCode,
+        nickname
+      });
+      return response.status(200).json({ sessionId, role });
+    }
+    catch (error) {
+      console.error('加入房間失敗：', error);
+
+      return response.status(error.status ?? 500).json({
+        message: error.message || '加入房間失敗',
+        code: error.code ?? null,
+      });
+    }
+  }
+)
+
+app.get(
+  '/api/rooms/:sessionId/lobby',
+  requireAuth,
+  async (request, response) => {
+    const { sessionId } = request.params;
+
+    if (!sessionId) {
+      return response.status(400).json({
+        message: '缺少 sessionId',
+      });
+    }
+
+    try {
+      const lobbyInfo = await getLobbyInfo(sessionId);
+      return response.status(200).json(lobbyInfo);
+    }
+    catch (error) {
+      console.error('取得大廳資訊失敗：', error);
+
+      return response.status(error.status ?? 500).json({
+        message: error.message || '取得大廳資訊失敗',
+        code: error.code ?? null,
+      });
+    }
+  }
+)
+
 app.post(
   '/api/quiz-session/:sessionId/check-quiz-answer',
   // request.body 是 HTTP request 的資料內容，只是剛好叫做 body，不是 html 裡面的那個 <body>

@@ -20,6 +20,26 @@ async function saveAuthSession(authResult) {
    return data.session;
 }
 
+async function ensureAuthSession() {
+   const { data: { session }, error:sessionError } = await supabase.auth.getSession();
+
+   if (sessionError) {
+      throw sessionError;
+   }
+
+   if (session) return session;
+
+   const {data, error} = await supabase.auth.signInAnonymously();
+
+   if (error) {
+      throw error;
+   }
+
+   if (!data.session) {
+      throw new Error('無法取得 session');
+   }
+   return data.session;
+}
 // export default function App() {
 //    const [mode, setMode] = useState('sign-in');
 //    const [email, setEmail] = useState('');
@@ -139,6 +159,7 @@ async function saveAuthSession(authResult) {
 
 function startGame(roomCode) {
    // 要補上驗證房間碼的部分
+   // 這邊讓房主點擊開始遊戲後，要讓房主主導接下來的選擇內容
    window.location.assign(`./gameEntry.html?roomCode=${roomCode}`);
 }
 
@@ -181,7 +202,7 @@ function SelectPlayers({playerCount, onChange, onConfirm}) {
                      </select>
                   </div>
 
-                  <button type="button" onClick={() => onConfirm(playerCount)}>送出</button>
+                  <button className="setup-button" type="button" onClick={() => onConfirm(playerCount)}>送出</button>
                </form>
             </section>
          </main>
@@ -204,7 +225,7 @@ function SelectGameMode({mode, players, onChange, onConfirm}) {
                   </select>
                </div>
 
-               <button type="button" onClick={() => onConfirm(mode)}>送出</button>
+               <button className="setup-button" type="button" onClick={() => onConfirm(mode)}>送出</button>
                </form>
             </section>
          </main>
@@ -218,11 +239,11 @@ function SelectGameMode({mode, players, onChange, onConfirm}) {
                   <label htmlFor="mode">遊戲模式：</label>
                   <div className="select-control">
                      <select className="setup-select" name="mode" value={mode} onChange={(e) => onChange(e.target.value)}>                     
-                     <option value={'auto'}>電腦判定模式</option>
+                     <option value={'auto'}>單人電腦判定模式</option>
                   </select>
                </div>
 
-               <button type="button" onClick={() => onConfirm(mode)}>送出</button>
+               <button className="setup-button" type="button" onClick={() => onConfirm(mode)}>送出</button>
                </form>
             </section>
          </main>
@@ -231,102 +252,238 @@ function SelectGameMode({mode, players, onChange, onConfirm}) {
 
 }
 
-function HostRoom({players, onBack}) {
+function RoomEntry({mode, nickName, roomCode, onNicknameChange, onRoomCodeChange, onCreate, onJoin, onBack}) {
+   console.log('we are in room entry page');
+   const isCreate = mode === 'create';   
+
+   return (
+      <>
+         <main className="game-entry-main">
+            <section className="setup-card">            
+               <form className="setup-form">                  
+                  <input                      
+                     placeholder="請輸入暱稱" 
+                     value={nickName}
+                     onChange={(e) => onNicknameChange(e.target.value)}
+                  />
+                  {mode === 'join' && (
+                     <input                        
+                        placeholder="請輸入房間代碼" 
+                        value={roomCode}
+                        onChange={(e) => onRoomCodeChange(e.target.value)}
+                     />
+                  )}
+                  
+                  <button className="setup-button" type="button" onClick={isCreate ? onCreate : onJoin}>
+                     {isCreate ? '創建房間' : '加入房間'}
+                  </button>
+                  
+                  <button className="setup-button" type="button" onClick={onBack}>
+                     返回主選單
+                  </button>
+               </form>
+            </section>
+         </main>
+      </>
+   );
+}
+
+function Lobby({sessionId, roomCode, myRole, players, onBack}) {
    console.log('we are in host room page');
-   const [roomCode, setRoomCode] = useState('');
    const [joinPlayerCount, setJoinPlayerCount] = useState(0);
 
-
-   // 等後端給唯一的房間碼
-   // useEffect(() => {      
-   //    const fetchRoomCode = async () => {         
-   //       const response = await fetch('/api/create-room', {
-   //          method: 'POST',
-   //          headers: {
-   //             'Content-Type': 'application/json'
-   //          },
-   //          body: JSON.stringify({ players })
-   //       });
-   //       const data = await response.json();
-   //       setRoomCode(data.roomCode);
-   //    };
-
-   //    fetchRoomCode();
-   // }, []);
-
    return (
       <>
          <main className="game-entry-main">
             <section className="auth-card">
                <form className="setup-form">
-                  <h2 className="setup-title">創建房間</h2>
+                  <h2 className="setup-title">房間資訊</h2>
                   <p>房間代碼：{roomCode}</p>
-                  <p>已加入玩家人數：{joinPlayerCount}/{players}</p>
-                  <p>等待其他玩家加入...</p>
-            
-               <button type="button" onClick={() => startGame(roomCode)}>開始遊戲</button>
-               <button type="button" onClick={onBack}>返回</button>
+                  <p>已加入玩家人數：{joinPlayerCount}/{players}</p>                  
+                  <p>等待其他玩家加入...</p>                  
+                  
+               {myRole === 'host' && (
+                  <button className="setup-button" type="button" onClick={() => startGame(sessionId)}>
+                     開始遊戲
+                  </button>
+               )}               
+               <button className="setup-button" type="button" onClick={onBack}>返回</button>
                </form>
             </section>
          </main>
       </>
    )
 }
-function JoinRoom({onBack}) {
-   console.log('we are in join room page');
-   const [roomCode, setRoomCode] = useState('');
-   
-   async function handleJoinRoom(event) {
-      event.preventDefault();
-      
-      // 等後端的 api? 判斷房間是否存在? 對應的房間碼是否正確?
-   }
-   
-   return (
-      <>
-         <main className="game-entry-main">
-            <section className="auth-card">
-               <form className="setup-form">
-                  <h2 className="setup-title">加入房間</h2>
 
-               <p>請輸入房間代碼</p>
+// function JoinRoom({onBack}) {
+//    console.log('we are in join room page');
+//    const [roomCode, setRoomCode] = useState('');
+   
+//    async function handleJoinRoom(event) {
+//       event.preventDefault();
+      
+//       // 等後端的 api? 判斷房間是否存在? 對應的房間碼是否正確?
+//    }
+   
+//    return (
+//       <>
+//          <main className="game-entry-main">
+//             <section className="auth-card">
+//                <form className="setup-form">
+//                   <h2 className="setup-title">加入房間</h2>
+
+//                <p>請輸入房間代碼</p>
             
-                  <input type="text" value={roomCode} onChange={(e) => setRoomCode(e.target.value)} placeholder="Room Code:" />
-                  <button type="submit">加入</button>
-                  <button type="button" onClick={onBack}>返回</button>
-               </form>
-            </section>
-         </main>
-      </>
-   )
-}
+//                   <input type="text" value={roomCode} onChange={(e) => setRoomCode(e.target.value)} placeholder="Room Code:" />
+//                   <button className="setup-button" type="button" onClick={handleJoinRoom}>加入</button>
+//                   <button className="setup-button" type="button" onClick={onBack}>返回</button>
+//                </form>
+//             </section>
+//          </main>
+//       </>
+//    )
+// }
 
 
 export default function App() {
    const [screen, setScreen] = useState('menu');
    const [playerCount, setPlayerCount] = useState(1);
-   const [gameMode, setGameMode] = useState('auto');
+   const [roomMode, setRoomMode] = useState('auto');
+   const [roomCode, setRoomCode] = useState('');
+   const [mode, setMode] = useState('create');
+   const [nickname, setNickname] = useState('');
+   const [room, setRoom] = useState(null);
 
    function handlePlayerCount() {
       setScreen('select-game-mode');
    }
 
    function handleGameMode() {
-      if (gameMode === 'host') {
-         setScreen('host-room');
+      // if (roomMode === 'host') {
+      //    setScreen('room-entry');
+      // }
+      // else if (roomMode === 'auto') {
+      //    // 直接開始遊戲
+      //    setScreen('room-entry');
+      // }
+      setScreen('room-entry');
+   }
+
+   async function handleCreateRoom(event) {
+      event.preventDefault();
+
+      try {
+         const user_session = await ensureAuthSession();
+         if (!user_session) {
+            throw new Error('無法取得使用者 session');
+         }
+         // api request 會自動加入 token
+         const result = await apiRequest('/api/create-room', {
+            method: 'POST',
+            headers: {
+               'Authorization': `Bearer ${user_session.access_token}`,
+            },
+            body: { nickname: nickname },
+         });
+
+         setRoom({
+            sessionId: result.sessionId,
+            roomCode: result.roomCode,
+            myRole: result.role,
+         });
+         setScreen('lobby');
       }
-      else if (gameMode === 'auto') {
-         // 直接開始遊戲
-         startGame();
+      catch (error) {
+         console.error('創建房間失敗：', error);
+         alert(`創建房間失敗：${error.message}`);
       }
    }
+
+   async function handelJoinRoom(event) {
+      event.preventDefault();
+
+      try {
+         const user_session = await ensureAuthSession();
+         if (!user_session) {
+            throw new Error('無法取得使用者 session');
+         }
+
+         const result = await apiRequest('/api/join-room', {
+            method: 'POST',
+            headers: {
+               'Authorization': `Bearer ${user_session.access_token}`,
+            },
+            body: { roomCode: roomCode, nickname: nickname },
+         });
+
+         setRoom({
+            sessionId: result.sessionId,
+            roomCode: roomCode,
+            myRole: result.role,
+         });
+         setScreen('lobby');
+      }
+      catch (error) {
+         console.error('加入房間失敗：', error);
+         alert(`加入房間失敗：${error.message}`);
+      }
+   }
+
    return (
       <>
-         {screen === 'menu' && (<Menu onCreate={() => setScreen('select-players')} onJoin={() => setScreen('join-room')} />)}
-         {screen === 'select-players' && (<SelectPlayers playerCount={playerCount} onChange={setPlayerCount} onConfirm={handlePlayerCount} />)}
-         {screen === 'host-room' && (<HostRoom players={playerCount} onBack={() => setScreen('menu')} />)}
-         {screen === 'join-room' && (<JoinRoom onBack={() => setScreen('menu')} />)}
-         {screen === 'select-game-mode' && (<SelectGameMode mode={gameMode} players={playerCount} onChange={setGameMode} onConfirm={() => handleGameMode()} />)}
+         {screen === 'menu' && 
+            (<Menu 
+               onCreate={() => {
+                  setScreen('select-players');
+                  setMode('create');
+               }} 
+               onJoin={() => {
+                  setScreen('room-entry');
+                  setMode('join');
+               }} 
+            />)
+         }
+
+         {screen === 'select-players' && 
+            (<SelectPlayers 
+               playerCount={playerCount} 
+               onChange={setPlayerCount} 
+               onConfirm={handlePlayerCount} 
+            />)
+         }
+
+         {screen === 'select-game-mode' && 
+            (<SelectGameMode 
+               mode={roomMode} 
+               players={playerCount} 
+               onChange={setRoomMode} 
+               onConfirm={() => handleGameMode()} 
+            />)
+         }
+
+         {screen === 'room-entry' && 
+            (<RoomEntry 
+               mode={mode} 
+               nickName={nickname} 
+               roomCode={roomCode} 
+               onNicknameChange={(e) => setNickname(e.target.value)} 
+               onRoomCodeChange={(e) => setRoomCode(e.target.value)} 
+               onCreate={handleCreateRoom} 
+               onJoin={handelJoinRoom} 
+               onBack={() => setScreen('menu')} 
+            />)
+         }
+
+         {screen === 'lobby' && 
+            (<Lobby 
+               sessionId={room.sessionId}
+               roomCode={room.roomCode} 
+               myRole={room.myRole}
+               players={playerCount} 
+               onBack={() => setScreen('menu')}
+            />)
+         }
+         {/* {screen === 'join-room' && (<JoinRoom onBack={() => setScreen('menu')} />)} */}
       </>
    )
 }
