@@ -10,7 +10,7 @@ export async function createRoom({user_id, nickname}) {
    const sessionId = roomInfo?.session_id;
    const roomCode = roomInfo?.room_code;
    const role = roomInfo?.role;
-
+   
    if (error) {
       throw error;
    }
@@ -21,7 +21,7 @@ export async function createRoom({user_id, nickname}) {
    }
 
    if (role !== 'host') {
-      throw new Error('角色不是 host，無法創建房間');
+      throw new Error('非主持人無法創建房間');
    }
 
 
@@ -53,5 +53,6 @@ export async function joinRoom({user_id, roomCode, nickname}) {
 
    return { sessionId, role };
 }
+
 
    

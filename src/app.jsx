@@ -261,13 +261,17 @@ function RoomEntry({mode, nickName, roomCode, onNicknameChange, onRoomCodeChange
          <main className="game-entry-main">
             <section className="setup-card">            
                <form className="setup-form">                  
-                  <input                      
+                  <input  
+                     id="nickName"
+                     type="text"                    
                      placeholder="請輸入暱稱" 
                      value={nickName}
                      onChange={(e) => onNicknameChange(e.target.value)}
                   />
                   {mode === 'join' && (
-                     <input                        
+                     <input    
+                        id="roomCode"
+                        type="text"                    
                         placeholder="請輸入房間代碼" 
                         value={roomCode}
                         onChange={(e) => onRoomCodeChange(e.target.value)}
@@ -290,7 +294,40 @@ function RoomEntry({mode, nickName, roomCode, onNicknameChange, onRoomCodeChange
 
 function Lobby({sessionId, roomCode, myRole, players, onBack}) {
    console.log('we are in host room page');
-   const [joinPlayerCount, setJoinPlayerCount] = useState(0);
+   const [lobbyInfo, setLobbyInfo] = useState(null);
+
+   useEffect(() => {
+      let isActicve = true;
+      let timeoutId = null;
+
+      async function pollLobby() {
+         try {
+            const user_session = await ensureAuthSession();
+            if (!user_session) {
+               throw new Error('無法取得使用者 session');
+            }
+            const sessionIdEncoded = encodeURIComponent(sessionId);
+            const result = await apiRequest(`/api/${sessionIdEncoded}/lobbyInfo`, {
+               method: 'GET',
+               headers: {
+                  'Authorization': `Bearer ${user_session.access_token}`,
+               },
+               body: { sessionId },
+            });
+            setLobbyInfo(result);
+         }
+         catch (error) {
+            if (!isActicve) return;
+            console.error('取得房間資訊失敗：', error);
+         }
+      }
+
+      pollLobby();
+      return () => {
+         isActicve = false;
+         clearTimeout(timeoutId);
+      };
+   }, [sessionId]);
 
    return (
       <>
@@ -298,8 +335,8 @@ function Lobby({sessionId, roomCode, myRole, players, onBack}) {
             <section className="auth-card">
                <form className="setup-form">
                   <h2 className="setup-title">房間資訊</h2>
-                  <p>房間代碼：{roomCode}</p>
-                  <p>已加入玩家人數：{joinPlayerCount}/{players}</p>                  
+                  <p>房間代碼：{lobbyInfo?.roomCode}</p>
+                  <p>已加入玩家人數：{lobbyInfo?.playerCount}/{players}</p>                  
                   <p>等待其他玩家加入...</p>                  
                   
                {myRole === 'host' && (
@@ -351,7 +388,7 @@ export default function App() {
    const [roomMode, setRoomMode] = useState('auto');
    const [roomCode, setRoomCode] = useState('');
    const [mode, setMode] = useState('create');
-   const [nickname, setNickname] = useState('');
+   const [nickName, setNickName] = useState('');
    const [room, setRoom] = useState(null);
 
    function handlePlayerCount() {
@@ -383,7 +420,7 @@ export default function App() {
             headers: {
                'Authorization': `Bearer ${user_session.access_token}`,
             },
-            body: { nickname: nickname },
+            body: { nickname: nickName },
          });
 
          setRoom({
@@ -399,7 +436,7 @@ export default function App() {
       }
    }
 
-   async function handelJoinRoom(event) {
+   async function handleJoinRoom(event) {
       event.preventDefault();
 
       try {
@@ -413,7 +450,7 @@ export default function App() {
             headers: {
                'Authorization': `Bearer ${user_session.access_token}`,
             },
-            body: { roomCode: roomCode, nickname: nickname },
+            body: { roomCode: roomCode, nickname: nickName },
          });
 
          setRoom({
@@ -457,19 +494,19 @@ export default function App() {
                mode={roomMode} 
                players={playerCount} 
                onChange={setRoomMode} 
-               onConfirm={() => handleGameMode()} 
+               onConfirm={handleGameMode} 
             />)
          }
 
          {screen === 'room-entry' && 
             (<RoomEntry 
                mode={mode} 
-               nickName={nickname} 
+               nickName={nickName} 
                roomCode={roomCode} 
-               onNicknameChange={(e) => setNickname(e.target.value)} 
-               onRoomCodeChange={(e) => setRoomCode(e.target.value)} 
+               onNicknameChange={setNickName} 
+               onRoomCodeChange={setRoomCode} 
                onCreate={handleCreateRoom} 
-               onJoin={handelJoinRoom} 
+               onJoin={handleJoinRoom} 
                onBack={() => setScreen('menu')} 
             />)
          }

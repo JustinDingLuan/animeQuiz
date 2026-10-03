@@ -21,7 +21,7 @@ import {
 
 import {
   createRoom, 
-  joinRoom
+  joinRoom  
 } from './roomEntry.js';
 
 
@@ -234,7 +234,7 @@ app.post(
 )
 
 app.get(
-  '/api/rooms/:sessionId/lobby',
+  '/api/:sessionId/lobby',
   requireAuth,
   async (request, response) => {
     const { sessionId } = request.params;
