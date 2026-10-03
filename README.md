@@ -49,3 +49,17 @@ server 只會用在 dev command 的時候
 新想法: 區分成電腦判定模式 & 主持人模式
 - 後端 api 尚未新增
 - 前端 css 尚未完全更新，有些 button 的樣式沒設定好
+
+## 20261002
+新增兩個 rpc: create_host_room 跟 join_room
+- create_host_room 負責: 產生房間碼、建立 session 資訊，並且創立人為該位 user、回傳(roomCode, sessionId, role)
+- join_room 負責: 判斷 session row data 中有哪筆資料符合使用者輸入的房間碼，回傳 (sessionId, role)
+
+## 20261003
+建立流程:
+- 使用者選擇要建立房間 or 加入房間。
+- 選擇人數。
+- 單人 -> 輸入暱稱後可直接開始遊戲。
+- 多人 -> 房主輸入暱稱並點擊建立房間，透過 rpc 得到房間碼以及 sessionId，其他人在加入房間的選項輸入房間碼以及暱稱。
+- 等待所有玩家加入後，由房主點擊開始遊戲。
+目前進度: 房主可以進到建立房間的畫面，但等待室還沒處理好(後端 api 還沒完全處理好)
