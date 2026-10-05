@@ -2,23 +2,24 @@ import { useEffect, useState } from 'react';
 import { supabase } from './supabase.js';
 import { apiRequest } from './client/apiRequest.js';
 import './auth.css';
+import './styles.css';
 
-async function saveAuthSession(authResult) {
-   if (!authResult.session) {
-      return null;
-   }
+// async function saveAuthSession(authResult) {
+//    if (!authResult.session) {
+//       return null;
+//    }
 
-   const { data, error } = await supabase.auth.setSession({
-      access_token: authResult.session.access_token,
-      refresh_token: authResult.session.refresh_token,
-   });
+//    const { data, error } = await supabase.auth.setSession({
+//       access_token: authResult.session.access_token,
+//       refresh_token: authResult.session.refresh_token,
+//    });
 
-   if (error) {
-      throw error;
-   }
+//    if (error) {
+//       throw error;
+//    }
 
-   return data.session;
-}
+//    return data.session;
+// }
 
 async function ensureAuthSession() {
    const { data: { session }, error:sessionError } = await supabase.auth.getSession();
@@ -252,7 +253,7 @@ function SelectGameMode({mode, players, onChange, onConfirm}) {
 
 }
 
-function RoomEntry({mode, nickName, roomCode, onNicknameChange, onRoomCodeChange, onCreate, onJoin, onBack}) {
+function RoomEntry({mode, nickname, roomCode, onnicknameChange, onRoomCodeChange, onCreate, onJoin, onBack}) {
    console.log('we are in room entry page');
    const isCreate = mode === 'create';   
 
@@ -262,11 +263,11 @@ function RoomEntry({mode, nickName, roomCode, onNicknameChange, onRoomCodeChange
             <section className="setup-card">            
                <form className="setup-form">                  
                   <input  
-                     id="nickName"
+                     id="nickname"
                      type="text"                    
                      placeholder="請輸入暱稱" 
-                     value={nickName}
-                     onChange={(e) => onNicknameChange(e.target.value)}
+                     value={nickname}
+                     onChange={(e) => onnicknameChange(e.target.value)}
                   />
                   {mode === 'join' && (
                      <input    
@@ -297,7 +298,7 @@ function Lobby({sessionId, roomCode, myRole, players, onBack}) {
    const [lobbyInfo, setLobbyInfo] = useState(null);
 
    useEffect(() => {
-      let isActicve = true;
+      let isActive = true;
       let timeoutId = null;
 
       async function pollLobby() {
@@ -312,19 +313,26 @@ function Lobby({sessionId, roomCode, myRole, players, onBack}) {
                headers: {
                   'Authorization': `Bearer ${user_session.access_token}`,
                },
-               body: { sessionId },
-            });
+            });            
+            
             setLobbyInfo(result);
+            console.log('lobby info:', result);
          }
          catch (error) {
-            if (!isActicve) return;
+            if (!isActive) return;
             console.error('取得房間資訊失敗：', error);
+         }
+         
+         // 如果還沒開始遊戲(isActive)，每兩秒更新一次大廳狀態
+         if (isActive) {
+            timeoutId = setTimeout(pollLobby, 2000);
          }
       }
 
       pollLobby();
       return () => {
-         isActicve = false;
+         // 如果已經結束了，就不要再更新大廳狀態了 -> 把 timeout 清掉
+         isActive = false;
          clearTimeout(timeoutId);
       };
    }, [sessionId]);
@@ -335,12 +343,12 @@ function Lobby({sessionId, roomCode, myRole, players, onBack}) {
             <section className="auth-card">
                <form className="setup-form">
                   <h2 className="setup-title">房間資訊</h2>
-                  <p>房間代碼：{lobbyInfo?.roomCode}</p>
-                  <p>已加入玩家人數：{lobbyInfo?.playerCount}/{players}</p>                  
-                  <p>等待其他玩家加入...</p>                  
+                  <p>房間代碼：{lobbyInfo?.room_code}</p>
+                  <p>已加入玩家人數：{lobbyInfo?.playerCount}/{lobbyInfo?.room_capacity}</p>                  
+                  <p>等待其他玩家加入...</p>
                   
                {myRole === 'host' && (
-                  <button className="setup-button" type="button" onClick={() => startGame(sessionId)}>
+                  <button className="start-game-button" type="button" onClick={() => startGame(sessionId)}>
                      開始遊戲
                   </button>
                )}               
@@ -388,7 +396,7 @@ export default function App() {
    const [roomMode, setRoomMode] = useState('auto');
    const [roomCode, setRoomCode] = useState('');
    const [mode, setMode] = useState('create');
-   const [nickName, setNickName] = useState('');
+   const [nickname, setnickname] = useState('');
    const [room, setRoom] = useState(null);
 
    function handlePlayerCount() {
@@ -411,16 +419,18 @@ export default function App() {
 
       try {
          const user_session = await ensureAuthSession();
+         console.log('目前使用者 id:', user_session?.user?.id);
          if (!user_session) {
             throw new Error('無法取得使用者 session');
          }
-         // api request 會自動加入 token
+
+         // api request 會自動加入 token         
          const result = await apiRequest('/api/create-room', {
             method: 'POST',
             headers: {
                'Authorization': `Bearer ${user_session.access_token}`,
             },
-            body: { nickname: nickName },
+            body: { nickname: nickname, roomCapacity: playerCount },
          });
 
          setRoom({
@@ -444,13 +454,14 @@ export default function App() {
          if (!user_session) {
             throw new Error('無法取得使用者 session');
          }
+         console.log('目前使用者 id:', user_session?.user?.id);
 
          const result = await apiRequest('/api/join-room', {
             method: 'POST',
             headers: {
                'Authorization': `Bearer ${user_session.access_token}`,
             },
-            body: { roomCode: roomCode, nickname: nickName },
+            body: { roomCode: roomCode, nickname: nickname },
          });
 
          setRoom({
@@ -501,9 +512,9 @@ export default function App() {
          {screen === 'room-entry' && 
             (<RoomEntry 
                mode={mode} 
-               nickName={nickName} 
+               nickname={nickname} 
                roomCode={roomCode} 
-               onNicknameChange={setNickName} 
+               onnicknameChange={setnickname} 
                onRoomCodeChange={setRoomCode} 
                onCreate={handleCreateRoom} 
                onJoin={handleJoinRoom} 

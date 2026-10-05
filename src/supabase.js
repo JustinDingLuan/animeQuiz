@@ -12,5 +12,13 @@ if (!supabaseUrl || !supabasePublishableKey) {
 
 export const supabase = createClient(
   supabaseUrl,
-  supabasePublishableKey
+  supabasePublishableKey,
+  {
+    auth: {
+      // 開發時讓分頁各自登入，正式建置則保留跨分頁的登入狀態。
+      storage: import.meta.env.DEV
+        ? window.sessionStorage
+        : window.localStorage,
+    },
+  }
 );

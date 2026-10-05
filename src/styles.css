@@ -256,6 +256,23 @@ h1 {
   outline: none;
   box-shadow: 0 0 0 4px rgb(118 87 255 / 15%);
 }
+/* 之後再調 */
+.setup-button {
+  width: 100%;
+  padding: 14px 20px;
+  border: 0;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #7657ff, #5b45e0);
+  box-shadow: 0 12px 28px rgb(91 69 224 / 25%);
+  color: #fff;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease;
+}
 
 .start-game-button,
 .room-join-button,

@@ -1,10 +1,11 @@
 import { supabaseAdmin } from './databaseAdmin.js';
 
-export async function createRoom({user_id, nickname}) {
+export async function createRoom({user_id, nickname, roomCapacity}) {
    // 變數名稱必須跟寫 rpc 的時候一模一樣
    const { data:roomInfo, error } = await supabaseAdmin.rpc('create_host_room', {
       p_nickname: nickname,
       p_user_id: user_id,
+      p_room_capacity: roomCapacity,
    });
 
    const sessionId = roomInfo?.session_id;
@@ -35,20 +36,20 @@ export async function joinRoom({user_id, roomCode, nickname}) {
       p_room_code: roomCode,
       p_nickname: nickname,
    });
+   if (error) {
+      throw error;
+   }
 
    const sessionId = data?.session_id;
    const role = data?.role;
 
+   console.log('joinRoom - sessionId:', sessionId, 'role:', role);
    if (!sessionId || !role) {
       throw new Error('無法取得 sessionId 或 role');
    }
 
    if (role !== 'player') {
       throw new Error('角色不是 player，無法加入房間');
-   }
-
-   if (error) {
-      throw error;
    }
 
    return { sessionId, role };

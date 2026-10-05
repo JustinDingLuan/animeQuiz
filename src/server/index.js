@@ -24,6 +24,9 @@ import {
   joinRoom  
 } from './roomEntry.js';
 
+import { 
+  getLobbyInfo 
+} from './lobby.js';
 
 // 透過 express 建立一個 HTTP server，並且設定好各種 API endpoint，讓前端可以透過 HTTP request 來跟後端互動。
 const app = express();
@@ -173,6 +176,7 @@ app.post(
   // user_id 自動放在 authrization header 裡面，後端可以透過 requireAuth 取得 user_id
   async (request, response) => {
     const nickname = request.body?.nickname;
+    const roomCapacity = request.body?.roomCapacity;
 
     if (nickname === null || nickname === undefined) {
       nickname = 'host';
@@ -181,7 +185,8 @@ app.post(
     try {
       const { sessionId, roomCode, role } = await createRoom({
         user_id: request.user.id,
-        nickname
+        nickname,
+        roomCapacity
       });
       return response.status(201).json({ sessionId, roomCode, role });
     }
@@ -234,7 +239,7 @@ app.post(
 )
 
 app.get(
-  '/api/:sessionId/lobby',
+  '/api/:sessionId/lobbyInfo',
   requireAuth,
   async (request, response) => {
     const { sessionId } = request.params;
