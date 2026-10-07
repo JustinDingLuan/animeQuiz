@@ -1,7 +1,7 @@
-import './styles.css';
+import '../styles/styles.css';
 import './quiz.css';
 import { useState, useRef, useEffect } from 'react';
-import { apiRequest } from './client/apiRequest.js';
+import { apiRequest } from '../api/apiRequest.js';
 
 const quizModes = {
   five_hints_guess_character: {
@@ -32,11 +32,17 @@ async function requestQuizSession(quizMode, questionCount) {
   return result;
 }
 
-export function Quiz({quizMode, questionCount}) { 
-  const [sessionId, setSessionId] = useState(null);
-  const [question, setQuestion] = useState(null);
+export function Quiz({quizMode, questionCount, roomSessionId = null, session = null}) {
+  // const [roomState, setRoomState] = useState(null);
+  // const [loadError, setLoadError] = useState('');
+  // const activeQuizMode = roomState?.quiz_mode ?? quizMode;
+  // const activeQuestionCount = roomState?.question_count ?? questionCount;
+  // 現在會把第一個題目帶進來，可以直接初始化
+  const firstQuestion = session?.current_question;
+  const [sessionId, setSessionId] = useState(roomSessionId);
+  const [question, setQuestion] = useState(firstQuestion ?? null);
   // questionCount 在建立 session 的時候就固定了，不用去更動他
-  const [visibleHintCount, setVisibleHintCount] = useState(0);
+  const [visibleHintCount, setVisibleHintCount] = useState(firstQuestion?.hints_revealed ?? 0);
   // const [answered, setAnswered] = useState(false);
 
   // const submittingRef = useRef(false);
@@ -49,19 +55,19 @@ export function Quiz({quizMode, questionCount}) {
   const [isCorrect, setIsCorrect] = useState(false);
   const [currentScore, setCurrentScore] = useState(0);
   // 
-  const [hints, setHints] = useState([]);
+  const [hints, setHints] = useState(firstQuestion?.hint ? [firstQuestion.hint.hint_text] : []);
   const [userAnswer, setUserAnswer] = useState('');
   const [resultMessage, setResultMessage] = useState('');
   const [hasNextHint, setHasNextHint] = useState(true);
   const [hasNextQuestion, setHasNextQuestion] = useState(true);
 
-  useEffect(() => {
+  useEffect(() => {    
     async function startQuiz() {
       try {
         resetToEmptyState();
 
-        const session = await requestQuizSession(quizMode, questionCount);
-        setSessionId(session.session_id);        
+        // const session = await requestQuizSession(quizMode, questionCount);
+        setSessionId(roomSessionId);        
 
         const currentQuestion = session.current_question;
         setQuestion(currentQuestion);
@@ -77,7 +83,44 @@ export function Quiz({quizMode, questionCount}) {
     }
 
     startQuiz();
-  }, [quizMode, questionCount]);
+  }, [quizMode, questionCount, roomSessionId]);
+
+  // useEffect(() => {
+  //   if (!roomSessionId) return;
+  //   let active = true;
+  //   let timeoutId;
+  //   let previousOrder;
+  //   async function pollGame() {
+  //     try {
+  //       const state = await apiRequest(`/api/rooms/${encodeURIComponent(roomSessionId)}/game`, { method: 'GET' });
+  //       if (!active) return;
+  //       if (state.game_over) {
+  //         window.location.assign(`/gameResult.html?sessionId=${encodeURIComponent(roomSessionId)}`);
+  //         return;
+  //       }
+  //       const current = state.current_question;
+  //       if (previousOrder !== current.question_order) {
+  //         resetToEmptyState();
+  //         previousOrder = current.question_order;
+  //       }
+  //       setLoadError('');
+  //       setRoomState(state);
+  //       setSessionId(state.session_id);
+  //       setQuestion(current);
+  //       setHints(current.hints.map((hint) => hint.hint_text));
+  //       setVisibleHintCount(current.hints_revealed);
+  //       setHasNextHint(current.hints_revealed < 5);
+  //       setIsCorrect(current.is_correct === true);
+  //       setCurrentScore(state.current_total_score);
+  //       sessionStorage.setItem('quizSessionId', state.session_id);
+  //     } catch (error) {
+  //       if (active) setLoadError(error.message);
+  //     }
+  //     if (active) timeoutId = setTimeout(pollGame, 2000);
+  //   }
+  //   pollGame();
+  //   return () => { active = false; clearTimeout(timeoutId); };
+  // }, [roomSessionId]);
   // 一開始的時候拿不到 question，因為 useEffect 還沒跑完，所以先回傳 loading 的資訊給使用者看
   // 等 useEffect 跑完之後，question 就會有值了，畫面就會重新 render
   if (!question) {
@@ -85,7 +128,7 @@ export function Quiz({quizMode, questionCount}) {
       <main className="quiz-page">
         <section className="quiz-loading" aria-live="polite">
           <span className="quiz-loading-spinner" aria-hidden="true" />
-          <p>正在準備題目……</p>
+          {/* <p role={loadError ? 'alert' : undefined}>{loadError || '正在準備題目……'}</p> */}
         </section>
       </main>
     );
@@ -128,7 +171,7 @@ export function Quiz({quizMode, questionCount}) {
           return;
         }
         
-        setHints((prevHints) => {return [...prevHints, result.hint.hint_text]});
+        setHints((prevHints) => [...prevHints, result.hint.hint_text]);
         setVisibleHintCount(result.hints_revealed);
       });
     } 
@@ -240,6 +283,7 @@ export function Quiz({quizMode, questionCount}) {
 
           {/* <p className="quiz-eyebrow">ANIME FIVE HINTS</p> */}
           <h1 id="quiz-title">{quizModeLabels[quizMode]}</h1>
+          {/* {loadError && <p role="alert">{loadError}</p>} */}
 
           <div className="quiz-progress-bar" aria-label={`第 ${question.question_order} 題，共 ${questionCount} 題`}>
             <span

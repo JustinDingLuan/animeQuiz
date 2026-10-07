@@ -1,4 +1,4 @@
-import { supabase } from '../supabase.js';
+import { supabase } from '../../lib/supabase.js';
 
 export async function apiRequest(url, options={}) {
    const requestOptions = {

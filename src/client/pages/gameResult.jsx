@@ -1,8 +1,7 @@
-import {useEffect, useState} from 'react';
-import {createRoot} from 'react-dom/client';
-import './styles.css';
+import { useEffect, useState } from 'react';
+import '../styles/styles.css';
 
-function GameResult() {
+export default function GameResult() {
   const params = new URLSearchParams(
     window.location.search
   );
@@ -130,6 +129,4 @@ function GameResult() {
   );
 }
 
-createRoot(
-  document.querySelector('#root')
-).render(<GameResult />);
+

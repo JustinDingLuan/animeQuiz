@@ -2,35 +2,15 @@ import express from 'express';
 import path from 'node:path';
 import 'dotenv/config';
 
-import {
-  checkQuizAnswer,
-  createQuizSession,
-  revealNextHint,
-  nextQuestion,
-  skipQuestion,
-  getQuizResult
-} from './quizSession.js';
-
-import {
-  signUp,
-  signIn,
-  signInAsGuest,
-  signOut,
-  requireAuth
-} from './auth.js';
-
-import {
-  createRoom, 
-  joinRoom  
-} from './roomEntry.js';
-
-import { 
-  getLobbyInfo 
-} from './lobby.js';
+import roomRoutes from './routes/room.routes.js';
+import quizRoutes from './routes/quiz.routes.js';
 
 // 透過 express 建立一個 HTTP server，並且設定好各種 API endpoint，讓前端可以透過 HTTP request 來跟後端互動。
 const app = express();
 app.use(express.json());
+
+app.use('/api', roomRoutes);
+app.use('/api', quizRoutes);
 
 const frontEndPath = path.resolve(process.cwd(), 'dist');
 app.use(express.static(frontEndPath));
@@ -44,397 +24,431 @@ app.listen(port, '0.0.0.0', () => {
   );
 });
 
-app.post(
-  '/api/auth/sign-up',  
-  async (request, response) => {
-    const { email, password } = request.body ?? {};
+// app.post(
+//   '/api/auth/sign-up',  
+//   async (request, response) => {
+//     const { email, password } = request.body ?? {};
 
-    if (
-      typeof email !== 'string' ||
-      typeof password !== 'string' ||
-      !email.trim() ||
-      !password
-    ) {
-      return response.status(400).json({
-        message: '缺少 email 或 password',
-      });
-    }
+//     if (
+//       typeof email !== 'string' ||
+//       typeof password !== 'string' ||
+//       !email.trim() ||
+//       !password
+//     ) {
+//       return response.status(400).json({
+//         message: '缺少 email 或 password',
+//       });
+//     }
 
-    try {
-      const data = await signUp(email.trim(), password);
-      return response.status(201).json(data);
-    } 
-    catch (error) {
-      console.error(
-        '註冊失敗：',
-        error
-      );
+//     try {
+//       const data = await signUp(email.trim(), password);
+//       return response.status(201).json(data);
+//     } 
+//     catch (error) {
+//       console.error(
+//         '註冊失敗：',
+//         error
+//       );
 
-      return response.status(error.status ?? 500).json({
-        message: error.message || '註冊失敗',
-        code: error.code ?? null,
-      });
-    }
-  }
-);
+//       return response.status(error.status ?? 500).json({
+//         message: error.message || '註冊失敗',
+//         code: error.code ?? null,
+//       });
+//     }
+//   }
+// );
 
-app.post(
-  '/api/auth/sign-in',  
-  async (request, response) => {
-    const { email, password } = request.body ?? {};
+// app.post(
+//   '/api/auth/sign-in',  
+//   async (request, response) => {
+//     const { email, password } = request.body ?? {};
 
-    if (
-      typeof email !== 'string' ||
-      typeof password !== 'string' ||
-      !email.trim() ||
-      !password
-    ) {
-      return response.status(400).json({
-        message: '缺少 email 或 password',
-      });
-    }
+//     if (
+//       typeof email !== 'string' ||
+//       typeof password !== 'string' ||
+//       !email.trim() ||
+//       !password
+//     ) {
+//       return response.status(400).json({
+//         message: '缺少 email 或 password',
+//       });
+//     }
 
-    try {
-      const data = await signIn(email.trim(), password);
-      return response.status(200).json(data);      
-    }
-    catch (error) {
-      console.error(
-        '登入失敗：',
-        error
-      );
+//     try {
+//       const data = await signIn(email.trim(), password);
+//       return response.status(200).json(data);      
+//     }
+//     catch (error) {
+//       console.error(
+//         '登入失敗：',
+//         error
+//       );
 
-      return response.status(error.status ?? 401).json({
-        message: '電子郵件或密碼錯誤',
-        code: error.code ?? null,
-      });
-    }
-  }
-);
+//       return response.status(error.status ?? 401).json({
+//         message: '電子郵件或密碼錯誤',
+//         code: error.code ?? null,
+//       });
+//     }
+//   }
+// );
 
-app.post(
-  '/api/auth/guest',
-  async (request, response) => {
-    try {
-      const data = await signInAsGuest();
-      return response.status(201).json(data);
-    }
-    catch (error) {
-      console.error('來賓登入失敗：', error);
+// app.post(
+//   '/api/auth/guest',
+//   async (request, response) => {
+//     try {
+//       const data = await signInAsGuest();
+//       return response.status(201).json(data);
+//     }
+//     catch (error) {
+//       console.error('來賓登入失敗：', error);
 
-      const isAnonymousDisabled =
-        error.code === 'anonymous_provider_disabled';
+//       const isAnonymousDisabled =
+//         error.code === 'anonymous_provider_disabled';
 
-      return response.status(error.status ?? 500).json({
-        message: isAnonymousDisabled
-          ? 'Supabase 尚未啟用 Anonymous Sign-Ins'
-          : (error.message || '來賓登入失敗'),
-        code: error.code ?? null,
-      });
-    }
-  }
-);
+//       return response.status(error.status ?? 500).json({
+//         message: isAnonymousDisabled
+//           ? 'Supabase 尚未啟用 Anonymous Sign-Ins'
+//           : (error.message || '來賓登入失敗'),
+//         code: error.code ?? null,
+//       });
+//     }
+//   }
+// );
 
-app.post(
-  '/api/auth/sign-out',
-  async (request, response) => {
-    const authorization =
-      request.get('authorization') ?? '';
-    const [scheme, accessToken] = authorization.split(' ');
+// app.post(
+//   '/api/auth/sign-out',
+//   async (request, response) => {
+//     const authorization =
+//       request.get('authorization') ?? '';
+//     const [scheme, accessToken] = authorization.split(' ');
 
-    if (
-      scheme?.toLowerCase() !== 'bearer' ||
-      !accessToken
-    ) {
-      return response.status(401).json({
-        message: '缺少有效的登入憑證',
-      });
-    }
+//     if (
+//       scheme?.toLowerCase() !== 'bearer' ||
+//       !accessToken
+//     ) {
+//       return response.status(401).json({
+//         message: '缺少有效的登入憑證',
+//       });
+//     }
 
-    try {
-      await signOut(accessToken);
-      return response.status(200).json({ message: '登出成功' });
-    } 
-    catch (error) {
-      console.error(
-        '登出失敗：',
-        error
-      );
+//     try {
+//       await signOut(accessToken);
+//       return response.status(200).json({ message: '登出成功' });
+//     } 
+//     catch (error) {
+//       console.error(
+//         '登出失敗：',
+//         error
+//       );
 
-      return response.status(error.status ?? 500).json({
-        message: error.message || '登出失敗',
-        code: error.code ?? null,
-      });
-    }
-  }
-);
+//       return response.status(error.status ?? 500).json({
+//         message: error.message || '登出失敗',
+//         code: error.code ?? null,
+//       });
+//     }
+//   }
+// );
 
-app.post(
-  '/api/create-room',
-  requireAuth,
-  // 這邊應該透過 rpc 取得唯一的 roomcode?
-  // user_id 自動放在 authrization header 裡面，後端可以透過 requireAuth 取得 user_id
-  async (request, response) => {
-    const nickname = request.body?.nickname;
-    const roomCapacity = request.body?.roomCapacity;
+// app.post(
+//   '/api/create-room',
+//   requireAuth,
+//   // 這邊應該透過 rpc 取得唯一的 roomcode?
+//   // user_id 自動放在 authrization header 裡面，後端可以透過 requireAuth 取得 user_id
+//   async (request, response) => {
+//     const nickname = request.body?.nickname;
+//     const roomCapacity = request.body?.roomCapacity;
 
-    if (nickname === null || nickname === undefined) {
-      nickname = 'host';
-    }
+//     if (nickname === null || nickname === undefined) {
+//       nickname = 'host';
+//     }
 
-    try {
-      const { sessionId, roomCode, role } = await createRoom({
-        user_id: request.user.id,
-        nickname,
-        roomCapacity
-      });
-      return response.status(201).json({ sessionId, roomCode, role });
-    }
-    catch (error) {
-      console.error('創建房間失敗：', error);
+//     try {
+//       const { sessionId, roomCode, role } = await createRoom({
+//         user_id: request.user.id,
+//         nickname,
+//         roomCapacity
+//       });
+//       return response.status(201).json({ sessionId, roomCode, role });
+//     }
+//     catch (error) {
+//       console.error('創建房間失敗：', error);
 
-      return response.status(error.status ?? 500).json({
-        message: error.message || '創建房間失敗',
-        code: error.code ?? null,
-      });
-    }
-  }
-)
+//       return response.status(error.status ?? 500).json({
+//         message: error.message || '創建房間失敗',
+//         code: error.code ?? null,
+//       });
+//     }
+//   }
+// )
 
-app.post(
-  '/api/join-room',
-  requireAuth,
-  // user_id 自動放在 authrization header 裡面，後端可以透過 requireAuth 取得 user_id  
-  async (request, response) => {
-    const roomCode = request.body?.roomCode;
-    const nickname = request.body?.nickname;
+// app.post(
+//   '/api/join-room',
+//   requireAuth,
+//   // user_id 自動放在 authrization header 裡面，後端可以透過 requireAuth 取得 user_id  
+//   async (request, response) => {
+//     const roomCode = request.body?.roomCode;
+//     const nickname = request.body?.nickname;
 
-    if (!roomCode || typeof roomCode !== 'string') {
-      return response.status(400).json({
-        message: '缺少 roomCode 或 roomCode 格式錯誤',
-      });
-    }
+//     if (!roomCode || typeof roomCode !== 'string') {
+//       return response.status(400).json({
+//         message: '缺少 roomCode 或 roomCode 格式錯誤',
+//       });
+//     }
 
-    if (nickname === null || nickname === undefined || typeof nickname !== 'string' || !nickname.trim()) {
-      nickname = 'player';
-    }    
+//     if (nickname === null || nickname === undefined || typeof nickname !== 'string' || !nickname.trim()) {
+//       nickname = 'player';
+//     }    
     
-    try {
-      const {sessionId, role} = await joinRoom({
-        user_id: request.user.id,
-        roomCode,
-        nickname
-      });
-      return response.status(200).json({ sessionId, role });
-    }
-    catch (error) {
-      console.error('加入房間失敗：', error);
+//     try {
+//       const {sessionId, role} = await joinRoom({
+//         user_id: request.user.id,
+//         roomCode,
+//         nickname
+//       });
+//       return response.status(200).json({ sessionId, role });
+//     }
+//     catch (error) {
+//       console.error('加入房間失敗：', error);
 
-      return response.status(error.status ?? 500).json({
-        message: error.message || '加入房間失敗',
-        code: error.code ?? null,
-      });
-    }
-  }
-)
+//       return response.status(error.status ?? 500).json({
+//         message: error.message || '加入房間失敗',
+//         code: error.code ?? null,
+//       });
+//     }
+//   }
+// )
 
-app.get(
-  '/api/:sessionId/lobbyInfo',
-  requireAuth,
-  async (request, response) => {
-    const { sessionId } = request.params;
+// app.get(
+//   '/api/:sessionId/lobbyInfo',
+//   requireAuth,
+//   async (request, response) => {
+//     const { sessionId } = request.params;
 
-    if (!sessionId) {
-      return response.status(400).json({
-        message: '缺少 sessionId',
-      });
-    }
+//     if (!sessionId) {
+//       return response.status(400).json({
+//         message: '缺少 sessionId',
+//       });
+//     }
 
-    try {
-      const lobbyInfo = await getLobbyInfo(sessionId);
-      return response.status(200).json(lobbyInfo);
-    }
-    catch (error) {
-      console.error('取得大廳資訊失敗：', error);
+//     try {
+//       const lobbyInfo = await getLobbyInfo(sessionId);
+//       return response.status(200).json(lobbyInfo);
+//     }
+//     catch (error) {
+//       console.error('取得大廳資訊失敗：', error);
 
-      return response.status(error.status ?? 500).json({
-        message: error.message || '取得大廳資訊失敗',
-        code: error.code ?? null,
-      });
-    }
-  }
-)
+//       return response.status(error.status ?? 500).json({
+//         message: error.message || '取得大廳資訊失敗',
+//         code: error.code ?? null,
+//       });
+//     }
+//   }
+// )
 
-app.post(
-  '/api/quiz-session/:sessionId/check-quiz-answer',
-  // request.body 是 HTTP request 的資料內容，只是剛好叫做 body，不是 html 裡面的那個 <body>
-  async (request, response) => {
-    const {sessionId} = request.params;
-    const {userAnswer} = request.body;
+// app.post(
+//   '/api/quiz-session/:sessionId/check-quiz-answer',
+//   // request.body 是 HTTP request 的資料內容，只是剛好叫做 body，不是 html 裡面的那個 <body>
+//   async (request, response) => {
+//     const {sessionId} = request.params;
+//     const {userAnswer} = request.body;
 
-    if (!sessionId || typeof userAnswer !== 'string' || !userAnswer.trim()) {
-      return response.status(400).json({
-        message: 'Session ID 或答案格式錯誤',
-      });
-    }
+//     if (!sessionId || typeof userAnswer !== 'string' || !userAnswer.trim()) {
+//       return response.status(400).json({
+//         message: 'Session ID 或答案格式錯誤',
+//       });
+//     }
 
-    try {
-      // 拿到後端 api 給出的結果以後，把結果用 json 的形式回傳給前端
-      // 前端接收到這個 json result 可以去更新畫面
-      const result = await checkQuizAnswer(sessionId, userAnswer);
+//     try {
+//       // 拿到後端 api 給出的結果以後，把結果用 json 的形式回傳給前端
+//       // 前端接收到這個 json result 可以去更新畫面
+//       const result = await checkQuizAnswer(sessionId, userAnswer);
       
-      return response.status(200).json(result);
-    } 
-    catch (error) {
-      console.error(
-        '答案判斷失敗：',
-        error
-      );
+//       return response.status(200).json(result);
+//     } 
+//     catch (error) {
+//       console.error(
+//         '答案判斷失敗：',
+//         error
+//       );
 
-      return response.status(500).json({
-        message: '答案判斷失敗',
-      });
-    }
-  }
-);
+//       return response.status(500).json({
+//         message: '答案判斷失敗',
+//       });
+//     }
+//   }
+// );
 
-app.post(
-  '/api/create-quiz-session',  
-  async (request, response) => {
-    const { quizMode, questionCount } = request.body;
+// // app.post(
+// //   '/api/create-quiz-session',  
+// //   async (request, response) => {
+// //     const { quizMode, questionCount } = request.body;
     
-    try {
-      const quizSession = await createQuizSession(
-        quizMode,
-        questionCount
-      );
+// //     try {
+// //       const quizSession = await createQuizSession(
+// //         quizMode,
+// //         questionCount
+// //       );
 
-      return response.status(201).json(quizSession);
-    } 
-    catch (error) {
-      console.error(
-        '建立測驗失敗：',
-        error
-      );
+// //       return response.status(201).json(quizSession);
+// //     } 
+// //     catch (error) {
+// //       console.error(
+// //         '建立測驗失敗：',
+// //         error
+// //       );
 
-      return response.status(500).json({
-        message: '建立測驗失敗',
-      });
-    }
-  }
-);
+// //       return response.status(500).json({
+// //         message: '建立測驗失敗',
+// //       });
+// //     }
+// //   }
+// // );
 
-app.post(
-  '/api/quiz-session/:sessionId/reveal-next-hint',
-  async (request, response) => {
-    const { sessionId } = request.params;
+// app.post(
+//   '/api/rooms/:sessionId/start-game',
+//   async (request, response) => {
+//     const { sessionId } = request.params;
+//     const { quizMode, questionCount } = request.body;
 
-    if (!sessionId) {
-      return response.status(400).json({
-        message: '缺少 sessionId',
-      });
-    }
+//     if (!sessionId || !quizMode || !questionCount) {
+//       return response.status(400).json({
+//         message: '缺少 sessionId、quizMode 或 questionCount',
+//       });
+//     }
 
-    try {
-      const result = await revealNextHint(sessionId);
+//     try {
+//       const quizSession = await createQuizSession(
+//         sessionId,
+//         quizMode,
+//         questionCount
+//       );
 
-      return response.status(200).json(result);
-    } 
-    catch (error) {
-      console.error(
-        '取得下一個提示失敗：',
-        error
-      );
+//       return response.status(201).json(quizSession);
+//     } 
+//     catch (error) {
+//       console.error(
+//         '建立測驗失敗：',
+//         error
+//       );
 
-      return response.status(500).json({
-        message: '取得下一個提示失敗',
-      });
-    }
-  }
-);
+//       return response.status(500).json({
+//         message: '建立測驗失敗',
+//       });
+//     }
+//   }
+// );
 
-app.post(
-  '/api/quiz-session/:sessionId/next-question',
-  async (request, response) => {
-    const { sessionId } = request.params;
+// app.post(
+//   '/api/quiz-session/:sessionId/reveal-next-hint',
+//   async (request, response) => {
+//     const { sessionId } = request.params;
 
-    if (!sessionId) {
-      return response.status(400).json({
-        message: '缺少 sessionId',
-      });
-    }
+//     if (!sessionId) {
+//       return response.status(400).json({
+//         message: '缺少 sessionId',
+//       });
+//     }
+
+//     try {
+//       const result = await revealNextHint(sessionId);
+
+//       return response.status(200).json(result);
+//     } 
+//     catch (error) {
+//       console.error(
+//         '取得下一個提示失敗：',
+//         error
+//       );
+
+//       return response.status(500).json({
+//         message: '取得下一個提示失敗',
+//       });
+//     }
+//   }
+// );
+
+// app.post(
+//   '/api/quiz-session/:sessionId/next-question',
+//   async (request, response) => {
+//     const { sessionId } = request.params;
+
+//     if (!sessionId) {
+//       return response.status(400).json({
+//         message: '缺少 sessionId',
+//       });
+//     }
     
-    try {
-      const result = await nextQuestion(sessionId); 
-      return response.status(200).json(result);
-    }
-    catch (error) {
-      console.error(
-        '取得下一個題目失敗：',
-        error
-      );
+//     try {
+//       const result = await nextQuestion(sessionId); 
+//       return response.status(200).json(result);
+//     }
+//     catch (error) {
+//       console.error(
+//         '取得下一個題目失敗：',
+//         error
+//       );
 
-      return response.status(500).json({
-        message: '取得下一個題目失敗',
-      }); 
-    }
-  }
-);
+//       return response.status(500).json({
+//         message: '取得下一個題目失敗',
+//       }); 
+//     }
+//   }
+// );
 
-app.post(
-  '/api/quiz-session/:sessionId/skip-question',
-  async (request, response) => {
-    const { sessionId } = request.params;
+// app.post(
+//   '/api/quiz-session/:sessionId/skip-question',
+//   async (request, response) => {
+//     const { sessionId } = request.params;
 
-    if (!sessionId) {
-      return response.status(400).json({
-        message: '缺少 sessionId',
-      });
-    }
+//     if (!sessionId) {
+//       return response.status(400).json({
+//         message: '缺少 sessionId',
+//       });
+//     }
     
-    try {
-      const result = await skipQuestion(sessionId); 
-      return response.status(200).json(result);
-    }
-    catch (error) {
-      console.error(
-        '跳過題目失敗：',
-        error
-      );
+//     try {
+//       const result = await skipQuestion(sessionId); 
+//       return response.status(200).json(result);
+//     }
+//     catch (error) {
+//       console.error(
+//         '跳過題目失敗：',
+//         error
+//       );
 
-      return response.status(500).json({
-        message: '跳過題目失敗',
-      }); 
-    }
-  }
-);
+//       return response.status(500).json({
+//         message: '跳過題目失敗',
+//       }); 
+//     }
+//   }
+// );
 
-app.get(
-  '/api/quiz-session/:sessionId/result',
-  async (request, response) => {
-    const { sessionId } = request.params;
+// app.get(
+//   '/api/quiz-session/:sessionId/result',
+//   async (request, response) => {
+//     const { sessionId } = request.params;
 
-    if (!sessionId) {
-      return response.status(400).json({
-        message: '缺少 sessionId',
-      });
-    }
+//     if (!sessionId) {
+//       return response.status(400).json({
+//         message: '缺少 sessionId',
+//       });
+//     }
 
-    try {
-      const result = await getQuizResult(sessionId); 
-      return response.status(200).json(result);
-    }
-    catch (error) {
-      console.error(
-        '取得遊戲結果失敗：',
-        error
-      );
+//     try {
+//       const result = await getQuizResult(sessionId); 
+//       return response.status(200).json(result);
+//     }
+//     catch (error) {
+//       console.error(
+//         '取得遊戲結果失敗：',
+//         error
+//       );
 
-      return response.status(500).json({
-        message: '取得遊戲結果失敗',
-      }); 
-    }
-  }
-);
+//       return response.status(500).json({
+//         message: '取得遊戲結果失敗',
+//       }); 
+//     }
+//   }
+// );
 
 
