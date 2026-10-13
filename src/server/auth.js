@@ -131,3 +131,20 @@ export async function requireAuth(request, response, nextAction) {
 
    nextAction();
 }
+
+export async function getUserRole(sessionId, userId) {
+   const { data: user, error } = await supabaseAdmin
+      .from('quiz_session_members')
+      .select('role')
+      .eq('session_id', sessionId)
+      .eq('user_id', userId)
+      .single();
+
+   if (error) {
+      throw error;
+   }
+
+   return user?.role ?? null;
+}
+
+   

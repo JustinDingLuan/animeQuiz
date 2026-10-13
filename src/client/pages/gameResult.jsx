@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
 import '../styles/styles.css';
 
 export default function GameResult() {
@@ -96,9 +97,9 @@ export default function GameResult() {
             <p className="result-description">
               {resultState.message}
             </p>
-            <a className="result-secondary-action" href="/gameEntry.html">
-              返回遊戲設定
-            </a>
+            <Link to="/" className="result-secondary-action">
+              返回房間設定
+            </Link>
           </>
         )}
 
@@ -118,10 +119,10 @@ export default function GameResult() {
               <span>分</span>
             </div>
 
-            <a className="result-primary-action" href="/gameEntry.html">
+            <Link to="/" className="result-primary-action">
               再玩一次
               <span aria-hidden="true">→</span>
-            </a>
+            </Link>
           </>
         )}
       </section>

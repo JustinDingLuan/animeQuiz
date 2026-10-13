@@ -1,7 +1,9 @@
 import '../styles/styles.css';
 import './quiz.css';
 import { useState, useRef, useEffect } from 'react';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import { apiRequest } from '../api/apiRequest.js';
+import { getQuizMode } from '../../shared_items/quizConfig.js';
 
 const quizModes = {
   five_hints_guess_character: {
@@ -85,42 +87,7 @@ export function Quiz({quizMode, questionCount, roomSessionId = null, session = n
     startQuiz();
   }, [quizMode, questionCount, roomSessionId]);
 
-  // useEffect(() => {
-  //   if (!roomSessionId) return;
-  //   let active = true;
-  //   let timeoutId;
-  //   let previousOrder;
-  //   async function pollGame() {
-  //     try {
-  //       const state = await apiRequest(`/api/rooms/${encodeURIComponent(roomSessionId)}/game`, { method: 'GET' });
-  //       if (!active) return;
-  //       if (state.game_over) {
-  //         window.location.assign(`/gameResult.html?sessionId=${encodeURIComponent(roomSessionId)}`);
-  //         return;
-  //       }
-  //       const current = state.current_question;
-  //       if (previousOrder !== current.question_order) {
-  //         resetToEmptyState();
-  //         previousOrder = current.question_order;
-  //       }
-  //       setLoadError('');
-  //       setRoomState(state);
-  //       setSessionId(state.session_id);
-  //       setQuestion(current);
-  //       setHints(current.hints.map((hint) => hint.hint_text));
-  //       setVisibleHintCount(current.hints_revealed);
-  //       setHasNextHint(current.hints_revealed < 5);
-  //       setIsCorrect(current.is_correct === true);
-  //       setCurrentScore(state.current_total_score);
-  //       sessionStorage.setItem('quizSessionId', state.session_id);
-  //     } catch (error) {
-  //       if (active) setLoadError(error.message);
-  //     }
-  //     if (active) timeoutId = setTimeout(pollGame, 2000);
-  //   }
-  //   pollGame();
-  //   return () => { active = false; clearTimeout(timeoutId); };
-  // }, [roomSessionId]);
+  
   // 一開始的時候拿不到 question，因為 useEffect 還沒跑完，所以先回傳 loading 的資訊給使用者看
   // 等 useEffect 跑完之後，question 就會有值了，畫面就會重新 render
   if (!question) {
@@ -188,14 +155,18 @@ export function Quiz({quizMode, questionCount, roomSessionId = null, session = n
         if (result.game_over) {
           setHasNextQuestion(false);
           console.log('已經沒有下一題了');
-          const encodedSessionId = encodeURIComponent(sessionId);
-          window.location.assign(`/gameResult.html?sessionId=${encodedSessionId}`);
+          // const encodedSessionId = encodeURIComponent(sessionId);
+          // window.location.assign(`/gameResult.html?sessionId=${encodedSessionId}`);
+
+          // 改成 react-router-dom 的 navigate
+          const navigate = useNavigate();
+          navigate(`/game/${encodeURIComponent(sessionId)}/result`); 
           return;
         }
         // 換到下一題的時候記得把 isCorrect 設回 false，不然無法輸入
         resetToEmptyState();
         setQuestion(result.next_question);
-        setVisibleHintCount(result.next_question.hints_revealed);      
+        setVisibleHintCount(result.next_question.hints_revealed);
         setHints([result.next_question.hint.hint_text]);
         setHasNextHint(true);
       }); 
@@ -206,7 +177,7 @@ export function Quiz({quizMode, questionCount, roomSessionId = null, session = n
   }
 
   async function submitQuizAnswer(event) {
-    event.preventDefault();    
+    event.preventDefault();
     // if (submittingRef.current) {
     //     return;
     // }
@@ -226,8 +197,7 @@ export function Quiz({quizMode, questionCount, roomSessionId = null, session = n
     
     try {
       await quizAction('submitQuizAnswer', async () => {
-        const result = await requestCheckAnswer(sessionId, normalizedUserAnswer);
-        // setResultMessage('');
+        const result = await requestCheckAnswer(sessionId, normalizedUserAnswer);        
 
         if (result.is_correct) {
           setIsCorrect(true);
@@ -277,9 +247,9 @@ export function Quiz({quizMode, questionCount, roomSessionId = null, session = n
     <main className="quiz-page">
       <section className="quiz-shell" aria-labelledby="quiz-title">
         <header className="quiz-header">
-          <a className="quiz-back-link" href="/gameEntry.html">
-            ← 返回遊戲設定
-          </a>
+          <Link to="/" className="quiz-back-link">
+            ← 返回主選單
+          </Link>
 
           {/* <p className="quiz-eyebrow">ANIME FIVE HINTS</p> */}
           <h1 id="quiz-title">{quizModeLabels[quizMode]}</h1>

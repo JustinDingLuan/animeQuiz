@@ -1,6 +1,8 @@
 import {supabaseAdmin} from './databaseAdmin.js';
 import {checkAnswer} from './quizAnswer.js';
 
+import { getQuizMode } from '../shared_items/quizConfig.js';
+
 const quizModes = {
    five_hints_guess_character: {
       question_type: 'five_hints',
@@ -22,6 +24,42 @@ function shuffle(array) {
    }
 
    return result;
+}
+
+export async function getQuizSessionState(sessionId) {
+   // 讀取 session -> 
+   // 確認題目 status -> 
+   // 找 status = active 的 quiz_session_questions -> 
+   // 按照 hint_revealed 取得提示 -> 
+   // 回傳給前端
+
+   const {data: session, error: sessionError} = await supabaseAdmin
+      .from('quiz_sessions')
+      .select('*')
+      .eq('id', sessionId)
+      .maybeSingle();
+   
+   if (sessionError) {
+      console.error('取得測驗 session 失敗：', sessionError);
+      throw sessionError;
+   }
+
+   if (!session) {
+      throw new Error('找不到測驗 session');
+   }
+
+   const {data: activeQuestion, error: activeQuestionError} = await supabaseAdmin
+      .from('quiz_session_questions')
+      .select('*')
+      .eq('session_id', sessionId)
+      .eq('status', 'active')
+      .maybeSingle();
+   
+   if (activeQuestionError) {
+      console.error('取得進行中的題目失敗：', activeQuestionError);
+      throw activeQuestionError;
+   }
+
 }
 
 export async function startQuizSession(sessionId, userId, quizMode, questionCount) {

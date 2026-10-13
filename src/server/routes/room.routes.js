@@ -2,13 +2,18 @@ import { Router } from 'express';
 import { requireAuth } from '../auth.js';
 
 import {
-  createRoom, 
-  joinRoom  
+   createRoom, 
+   joinRoom
 } from '../roomEntry.js';
 
 import { 
-  getLobbyInfo 
+   getLobbyInfo,
+   startGame
 } from '../lobby.js';
+
+import {
+   getUserRole
+} from '../auth.js';
 
 const router = Router();
 
@@ -21,15 +26,15 @@ router.post(
       const nickname = request.body?.nickname;
       const roomCapacity = request.body?.roomCapacity;
 
-      if (nickname === null || nickname === undefined) {
-         nickname = 'host';
-      }
+      // if (nickname === null || nickname === undefined) {
+      //    nickname = 'host';
+      // }
 
       try {
          const { sessionId, roomCode, role } = await createRoom({
-         user_id: request.user.id,
-         nickname,
-         roomCapacity
+            user_id: request.user.id,
+            nickname,
+            roomCapacity
          });
          return response.status(201).json({ sessionId, roomCode, role });
       }
@@ -58,15 +63,15 @@ router.post(
          });
       }
 
-      if (nickname === null || nickname === undefined || typeof nickname !== 'string' || !nickname.trim()) {
-         nickname = 'player';
-      }    
+      // if (nickname === null || nickname === undefined || typeof nickname !== 'string' || !nickname.trim()) {
+      //    nickname = 'player';
+      // }    
       
       try {
          const {sessionId, role} = await joinRoom({
-         user_id: request.user.id,
-         roomCode,
-         nickname
+            user_id: request.user.id,
+            roomCode,
+            nickname
          });
          return response.status(200).json({ sessionId, role });
       }
@@ -103,6 +108,49 @@ router.get(
          return response.status(error.status ?? 500).json({
          message: error.message || '取得大廳資訊失敗',
          code: error.code ?? null,
+         });
+      }
+   }
+)
+
+router.post(
+   '/:sessionId/start-game',
+   requireAuth,
+   async (request, response) => {
+      const { sessionId } = request.params;
+
+      if (!sessionId) {
+         return response.status(400).json({
+         message: '缺少 sessionId',
+         });
+      }
+      const { quizMode, questionCount } = request.body;
+
+      try {
+         const userRole = await getUserRole(sessionId, request.user.id);
+         console.log('你的角色: ', userRole);
+
+         if (userRole !== 'host') {
+            return response.status(403).json({
+               message: '只有房主才能開始遊戲',
+            });
+         }
+
+         // 開始遊戲的邏輯
+         // 這邊可以透過 rpc 或是直接更新資料庫的方式來改變房間狀態為 in_progress
+         // 這邊假設有一個 startGame 函式可以處理這個邏輯         
+         await startGame({sessionId, quizMode, questionCount});
+
+         return response.status(200).json({
+            message: '遊戲已開始',
+         });
+      }
+      catch (error) {
+         console.error('開始遊戲失敗：', error);
+
+         return response.status(error.status ?? 500).json({
+            message: error.message || '開始遊戲失敗',
+            code: error.code ?? null,
          });
       }
    }

@@ -1,9 +1,10 @@
 import { supabaseAdmin } from './databaseAdmin.js';
+import {getQuizMode} from '../shared_items/quizConfig.js';
 
 export async function getLobbyInfo(sessionId) {
    const { data, error } = await supabaseAdmin
       .from('quiz_sessions')
-      .select('room_code, room_capacity')
+      .select('room_code, room_capacity, status')
       .eq('id', sessionId)
       .single();      
 
@@ -30,5 +31,13 @@ export async function getLobbyInfo(sessionId) {
    return {
       ...data,
       playerCount: count ?? 0,
+   }
+}
+
+// 把資料庫的此 session 更新成 in_progress -> 抽題目 -> 把第一題以及提示帶到 quizPage 中
+export async function startGame({sessionId, quizMode, questionCount}) {
+   const selectMode = getQuizMode(quizMode);
+   if (!selectMode) {
+      throw new Error('題型不正確');
    }
 }

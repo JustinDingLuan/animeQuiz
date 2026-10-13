@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import '../styles/styles.css';
+import '../pages/quiz.css';
+import { Link } from 'react-router-dom';
 
 export default function GameSettingsForm({ onStart, onBack, disabled=false }) {
    const [quizMode, setQuizMode] = useState('five_hints_guess_character');
@@ -15,7 +17,8 @@ export default function GameSettingsForm({ onStart, onBack, disabled=false }) {
       <>         
          <main className="game-entry-main">
             <section id="game-setup" className="setup-card" aria-labelledby="game-setup-title">
-            <button className="setup-button" onClick={onBack}>返回主選單</button>
+            {/* <button className="setup-button" onClick={onBack}>返回主選單</button> */}
+            <Link to="/" className="quiz-back-link"> ← 返回主選單 </Link>
             <p className="setup-eyebrow">Test your anime knowledge</p>
             <h1 id="game-setup-title">Anime Quiz</h1>
             <p className="setup-description">

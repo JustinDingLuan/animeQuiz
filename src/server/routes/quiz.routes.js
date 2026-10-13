@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requireAuth } from '../auth.js';
+import { requireAuth, getUserRole } from '../auth.js';
 
 import {
   checkQuizAnswer,
@@ -72,58 +72,67 @@ router.post(
 //    }
 // );
 
-router.post(
-   '/rooms/:sessionId/start-game',
-   requireAuth,
-   async (request, response) => {
-      const { sessionId } = request.params;
-      // request.user.id 是 id value 不是物件
-      const userId = request.user.id;
-      const { quizMode, questionCount } = request.body;
+// router.post(
+//    '/rooms/:sessionId/start-game',
+//    requireAuth,
+//    async (request, response) => {
+//       const { sessionId } = request.params;
+//       // request.user.id 是 id value 不是物件
+//       const userId = request.user.id;
+//       const { quizMode, questionCount } = request.body;
 
-      if (!sessionId || !quizMode || !questionCount) {
-         return response.status(400).json({
-         message: '缺少 sessionId、quizMode 或 questionCount',
-         });
-      }
+//       if (!sessionId || !quizMode || !questionCount) {
+//          return response.status(400).json({
+//          message: '缺少 sessionId、quizMode 或 questionCount',
+//          });
+//       }
 
-      if (!userId) {
-         return response.status(400).json({
-         message: '缺少 userId',
-         });
-      }
+//       if (!userId) {
+//          return response.status(400).json({
+//          message: '缺少 userId',
+//          });
+//       }
 
-      try {
-         const quizSession = await startQuizSession(
-            sessionId,
-            userId,
-            quizMode,
-            questionCount
-         );
+//       try {
+//          const quizSession = await startQuizSession(
+//             sessionId,
+//             userId,
+//             quizMode,
+//             questionCount
+//          );
 
-         return response.status(201).json(quizSession);
-      } 
-      catch (error) {
-         console.error(
-         '建立測驗失敗：',
-         error
-         );
+//          return response.status(201).json(quizSession);
+//       } 
+//       catch (error) {
+//          console.error(
+//          '建立測驗失敗：',
+//          error
+//          );
 
-         return response.status(500).json({
-         message: '建立測驗失敗',
-         });
-      }
-   }
-);
+//          return response.status(500).json({
+//          message: '建立測驗失敗',
+//          });
+//       }
+//    }
+// );
 
 router.post(
    '/quiz-session/:sessionId/reveal-next-hint',
+   requireAuth,
    async (request, response) => {
       const { sessionId } = request.params;
 
       if (!sessionId) {
          return response.status(400).json({
          message: '缺少 sessionId',
+         });
+      }
+      const userId = request.user.id;
+      const role = await getUserRole(sessionId, userId);
+      
+      if (role !== 'host') {
+         return response.status(403).json({
+         message: '只有該房間的主持人可以進行此操作',
          });
       }
 
@@ -147,6 +156,7 @@ router.post(
 
 router.post(
    '/quiz-session/:sessionId/next-question',
+   requireAuth,
    async (request, response) => {
       const { sessionId } = request.params;
 
@@ -156,6 +166,15 @@ router.post(
          });
       }
       
+      const userId = request.user.id;
+      const role = await getUserRole(sessionId, userId);
+      
+      if (role !== 'host') {
+         return response.status(403).json({
+         message: '只有該房間的主持人可以進行此操作',
+         });
+      }
+
       try {
          const result = await nextQuestion(sessionId); 
          return response.status(200).json(result);
@@ -175,6 +194,7 @@ router.post(
 
 router.post(
    '/quiz-session/:sessionId/skip-question',
+   requireAuth,
    async (request, response) => {
       const { sessionId } = request.params;
 
@@ -184,6 +204,15 @@ router.post(
          });
       }
       
+      const userId = request.user.id;
+      const role = await getUserRole(sessionId, userId);
+      
+      if (role !== 'host') {
+         return response.status(403).json({
+         message: '只有該房間的主持人可以進行此操作',
+         });
+      }
+
       try {
          const result = await skipQuestion(sessionId); 
          return response.status(200).json(result);
@@ -203,12 +232,22 @@ router.post(
 
 router.get(
    '/quiz-session/:sessionId/result',
+   requireAuth,
    async (request, response) => {
       const { sessionId } = request.params;
 
       if (!sessionId) {
          return response.status(400).json({
          message: '缺少 sessionId',
+         });
+      }
+      
+      const userId = request.user.id;
+      const role = await getUserRole(sessionId, userId);
+
+      if (role !== 'host') {
+         return response.status(403).json({
+         message: '只有該房間的主持人可以進行此操作',
          });
       }
 

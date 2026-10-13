@@ -71,4 +71,11 @@ server 只會用在 dev command 的時候
 
 ## 20261007
 待做事項
-- 已經改寫成 react router 的形式，所以要把之前直接用 <a> 的 html 跳轉改掉
+- 已經改寫成 react router 的形式，所以要把之前直接用 <a> 的 html 跳轉改掉(暫時完成，未驗證)
+
+## 20261013
+- 已知報錯: 填入 nickname 如果用自動填入，網頁 console 會報錯說 cannot read properties of undefined
+  可能原因: content_main.js 裡面有這段 code: isTriggerKey(t) { return t.key.toLowerCase() === this.triggerKey }
+  自動填入應該就沒有 t.key 這個 property，所以不用管這個報錯
+待做事項
+- 新增查詢 session 遊戲進度的 api，透過這個 function 讓主持人跟玩家的進度同步

@@ -55,5 +55,4 @@ export async function joinRoom({user_id, roomCode, nickname}) {
    return { sessionId, role };
 }
 
-
    

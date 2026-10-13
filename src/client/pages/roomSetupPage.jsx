@@ -27,11 +27,11 @@ async function ensureAuthSession() {
    return data.session;
 }
 
-function startGame(roomCode) {
-   // 要補上驗證房間碼的部分
-   // 這邊讓房主點擊開始遊戲後，要讓房主主導接下來的選擇內容
-   window.location.assign(`./gameEntry.html?roomCode=${roomCode}`);
-}
+// function startGame(roomCode) {
+//    // 要補上驗證房間碼的部分
+//    // 這邊讓房主點擊開始遊戲後，要讓房主主導接下來的選擇內容
+//    window.location.assign(`./gameEntry.html?roomCode=${roomCode}`);
+// }
 
 function Menu({onCreate, onJoin}) {
    return (
@@ -162,7 +162,7 @@ function RoomEntry({mode, nickname, roomCode, onnicknameChange, onRoomCodeChange
    );
 }
 
-function Lobby({sessionId, roomCode, myRole, players, onBack}) {
+function Lobby({sessionId, roomCode, myRole, nickname, players, onBack}) {
    const navigate = useNavigate();
    const [lobbyInfo, setLobbyInfo] = useState(null);
    const [isStarting, setIsStarting] = useState(false);
@@ -184,9 +184,15 @@ function Lobby({sessionId, roomCode, myRole, players, onBack}) {
                   'Authorization': `Bearer ${user_session.access_token}`,
                },
             });            
-            
+            if (!isActive) return;
+
             setLobbyInfo(result);
             console.log('lobby info:', result);
+            // 如果身分是 player，且遊戲已經開始了，就導向到遊戲頁面
+            if (myRole === 'player' && result.status === 'in_progress') {               
+               navigate(`/game/${sessionIdEncoded}`);
+            }
+           
          }
          catch (error) {
             if (!isActive) return;
@@ -215,7 +221,8 @@ function Lobby({sessionId, roomCode, myRole, players, onBack}) {
 
       setIsStarting(true);
       try {
-         const result = await apiRequest(`/api/rooms/${sessionId}/start-game`, {
+         // 房主點擊開始遊戲，把此次 quiz 的模式、題數傳給後端
+         const result = await apiRequest(`/api/${sessionId}/start-game`, {
             method: 'POST',
             headers: {
                'Content-Type': 'application/json',
@@ -224,7 +231,7 @@ function Lobby({sessionId, roomCode, myRole, players, onBack}) {
          });
 
          const sessionIdEncoded = encodeURIComponent(sessionId);
-         navigate(`/game/${sessionIdEncoded}`, {state:{ quizMode, questionCount, session: result }});
+         navigate(`/game/${sessionIdEncoded}`);
       }
       catch (error) {
          console.error('開始遊戲失敗：', error);
@@ -243,16 +250,14 @@ function Lobby({sessionId, roomCode, myRole, players, onBack}) {
                <div className="setup-form">
                   <h2 className="setup-title">房間資訊</h2>
                   <p>房間代碼：{lobbyInfo?.room_code}</p>
-                  <p>已加入玩家人數：{lobbyInfo?.playerCount}/{lobbyInfo?.room_capacity}</p>                  
+                  <p>你的角色：{myRole}</p>
+                  <p>你的名稱：{nickname}</p>
+                  <p>已加入玩家人數：{lobbyInfo?.playerCount}/{lobbyInfo?.room_capacity}</p>
                   <p>等待其他玩家加入...</p>
                   
-               {myRole === 'host' && (
-                  // <button className="start-game-button" type="button" onClick={() => navigate(`/game/${sessionId}`)}>
-                  //    開始遊戲
-                  // </button>
+               {myRole === 'host' && (                  
                   <GameSettingsForm onStart={handleStartGame} onBack={onBack} disabled={isStarting}></GameSettingsForm>
-               )}               
-               {/* <button className="setup-button" type="button" onClick={onBack}>返回</button> */}
+               )}                              
                </div>
             </section>
          </main>
@@ -329,7 +334,7 @@ export default function RoomSetupPage() {
 
          setRoom({
             sessionId: result.sessionId,
-            roomCode: roomCode,
+            roomCode: result.roomCode,
             myRole: result.role,
          });
          setScreen('lobby');
@@ -390,6 +395,7 @@ export default function RoomSetupPage() {
                sessionId={room.sessionId}
                roomCode={room.roomCode} 
                myRole={room.myRole}
+               nickname={nickname}
                players={playerCount} 
                onBack={() => setScreen('menu')}
             />)
