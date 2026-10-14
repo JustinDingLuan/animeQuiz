@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { apiRequest } from '../api/apiRequest.js';
 import '../styles/styles.css';
 
 export default function GameResult() {
-  const params = new URLSearchParams(
-    window.location.search
-  );
-  const sessionId = params.get('sessionId');
+  // const params = new URLSearchParams(
+  //   window.location.search
+  // );
+  // const sessionId = params.get('sessionId');
+  const { sessionId } = useParams();
   // 變數、操作變數用的 function
   const [resultState, setResultState] = useState({
     status: 'loading',
@@ -28,19 +30,12 @@ export default function GameResult() {
 
     async function loadGameResult() {
       try {
-        const encodedSessionId =
-          encodeURIComponent(sessionId);
-        const response = await fetch(
-          `/api/quiz-session/${encodedSessionId}/result`,
-          {signal: controller.signal}
-        );
-        const result = await response.json();
-
-        if (!response.ok) {
-          throw new Error(
-            result?.message || '取得遊戲結果失敗'
-          );
-        }
+        const encodedSessionId = encodeURIComponent(sessionId);
+        const result = await apiRequest(`/api/quiz-session/${encodedSessionId}/result`, {
+          method: 'GET',
+          signal: controller.signal,
+        });
+        
 
         setResultState({
           status: 'success',

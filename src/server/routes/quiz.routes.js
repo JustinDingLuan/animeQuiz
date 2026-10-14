@@ -2,13 +2,12 @@ import { Router } from 'express';
 import { requireAuth, getUserRole } from '../auth.js';
 
 import {
-  checkQuizAnswer,
-  createQuizSession,
-  startQuizSession,
+  checkQuizAnswer,  
   revealNextHint,
   nextQuestion,
   skipQuestion,
-  getQuizResult
+  getQuizResult,
+  getQuizSessionState
 } from '../quizSession.js';
 
 const router = Router();
@@ -245,9 +244,9 @@ router.get(
       const userId = request.user.id;
       const role = await getUserRole(sessionId, userId);
 
-      if (role !== 'host') {
+      if (!role) {
          return response.status(403).json({
-         message: '只有該房間的主持人可以進行此操作',
+         message: '只有該房間的成員可以進行此操作',
          });
       }
 
@@ -263,6 +262,43 @@ router.get(
 
          return response.status(500).json({
          message: '取得遊戲結果失敗',
+         }); 
+      }
+   }
+);
+
+router.get(
+   '/quiz-session/:sessionId/state',
+   requireAuth,
+   async (request, response) => {
+      const { sessionId } = request.params;
+
+      if (!sessionId) {
+         return response.status(400).json({
+         message: '缺少 sessionId',
+         });
+      }
+      
+      const userId = request.user.id;
+      const role = await getUserRole(sessionId, userId);
+      if (!role) {
+         return response.status(403).json({
+         message: '只有該房間的玩家可以進行此操作',
+         });
+      }
+      
+      try {
+         const result = await getQuizSessionState(sessionId); 
+         return response.status(200).json({ ...result, viewer: role });
+      }
+      catch (error) {
+         console.error(
+         '取得遊戲狀態失敗：',
+         error
+         );
+
+         return response.status(500).json({
+         message: '取得遊戲狀態失敗',
          }); 
       }
    }

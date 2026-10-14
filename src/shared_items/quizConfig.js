@@ -15,3 +15,10 @@ export const QUIZ_MODES = Object.freeze({
 export function getQuizMode(quizMode) {
    return QUIZ_MODES[quizMode] ?? null;
 }
+
+export function getQuizModeKey(questionType, answerType) {
+   return Object.entries(QUIZ_MODES).find(([, config]) =>
+         config.question_type === questionType &&
+         config.answer_type === answerType
+      )?.[0] ?? null;
+}

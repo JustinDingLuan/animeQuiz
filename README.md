@@ -79,3 +79,6 @@ server 只會用在 dev command 的時候
   自動填入應該就沒有 t.key 這個 property，所以不用管這個報錯
 待做事項
 - 新增查詢 session 遊戲進度的 api，透過這個 function 讓主持人跟玩家的進度同步
+
+## 20261014
+- hints 改成回傳物件形式，顯示的時候再把物件的內容取出

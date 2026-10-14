@@ -5,36 +5,38 @@ import { Link, useParams, useNavigate } from 'react-router-dom';
 import { apiRequest } from '../api/apiRequest.js';
 import { getQuizMode } from '../../shared_items/quizConfig.js';
 
-const quizModes = {
-  five_hints_guess_character: {
-    question_type: 'five_hints',
-    answer_type: 'character',
-  },
+// const quizModes = {
+//   five_hints_guess_character: {
+//     question_type: 'five_hints',
+//     answer_type: 'character',
+//   },
 
-  five_hints_guess_anime: {
-    question_type: 'five_hints',
-    answer_type: 'anime',
-  },
-}
+//   five_hints_guess_anime: {
+//     question_type: 'five_hints',
+//     answer_type: 'anime',
+//   },
+// }
 
-const quizModeLabels = {
-  five_hints_guess_character: '五提示猜角色',
-  five_hints_guess_anime: '五提示猜動畫',
-}
+// const quizModeLabels = {
+//   five_hints_guess_character: '五提示猜角色',
+//   five_hints_guess_anime: '五提示猜動畫',
+// }
 
-async function requestQuizSession(quizMode, questionCount) {  
-  const result = await apiRequest('/api/create-quiz-session', {
-    method: 'POST',
-    body: {
-      quizMode,
-      questionCount,
-    },
-  });
+// async function requestQuizSession(quizMode, questionCount) {  
+//   const result = await apiRequest('/api/create-quiz-session', {
+//     method: 'POST',
+//     body: {
+//       quizMode,
+//       questionCount,
+//     },
+//   });
 
-  return result;
-}
+//   return result;
+// }
 
 export function Quiz({quizMode, questionCount, roomSessionId = null, session = null}) {
+  const navigate = useNavigate();
+  const isHost = session.viewer === 'host';
   // const [roomState, setRoomState] = useState(null);
   // const [loadError, setLoadError] = useState('');
   // const activeQuizMode = roomState?.quiz_mode ?? quizMode;
@@ -57,35 +59,59 @@ export function Quiz({quizMode, questionCount, roomSessionId = null, session = n
   const [isCorrect, setIsCorrect] = useState(false);
   const [currentScore, setCurrentScore] = useState(0);
   // 
-  const [hints, setHints] = useState(firstQuestion?.hint ? [firstQuestion.hint.hint_text] : []);
+  const [hints, setHints] = useState(firstQuestion?.hints ?? []);
   const [userAnswer, setUserAnswer] = useState('');
   const [resultMessage, setResultMessage] = useState('');
   const [hasNextHint, setHasNextHint] = useState(true);
   const [hasNextQuestion, setHasNextQuestion] = useState(true);
 
+
+  const previousQuestionId = useRef(null);
   useEffect(() => {    
-    async function startQuiz() {
-      try {
-        resetToEmptyState();
+    // async function startQuiz() {
+    //   try {
+    //     // resetToEmptyState();
 
-        // const session = await requestQuizSession(quizMode, questionCount);
-        setSessionId(roomSessionId);        
+    //     // const session = await requestQuizSession(quizMode, questionCount);
+    //     setSessionId(roomSessionId);        
 
-        const currentQuestion = session.current_question;
-        setQuestion(currentQuestion);
-        setVisibleHintCount(currentQuestion.hints_revealed);
-        setHints([currentQuestion.hint.hint_text]);
+    //     const currentQuestion = session.current_question;
+    //     setQuestion(currentQuestion);
+    //     setVisibleHintCount(currentQuestion.hints_revealed);
+    //     setHints(currentQuestion.hints ?? []);
         
-        sessionStorage.setItem('quizSessionId', session.session_id);
+    //     sessionStorage.setItem('quizSessionId', session.session_id);
 
-      } 
-      catch (error) {
-        console.error('建立測驗失敗：', error);
-      }
+    //   } 
+    //   catch (error) {
+    //     console.error('建立測驗失敗：', error);
+    //   }
+    // }
+
+    // startQuiz();
+    const currentQuestion = session?.current_question;
+    if (!currentQuestion) return;
+
+    const questionChanged =
+      previousQuestionId.current !== currentQuestion.question_id;
+
+    setSessionId(roomSessionId);
+    setQuestion(currentQuestion);
+    setVisibleHintCount(currentQuestion.hints_revealed);
+    setHints(currentQuestion.hints ?? []);
+    setCurrentScore(session.current_total_score ?? 0);
+    setHasNextQuestion(session.question_count > 0);
+    setIsCorrect(currentQuestion.is_correct === true);
+    setHasNextHint(currentQuestion.hints_revealed < 5);
+
+    if (questionChanged) {
+      setUserAnswer('');
+      setResultMessage('');
+      setHasNextQuestion(true);
     }
 
-    startQuiz();
-  }, [quizMode, questionCount, roomSessionId]);
+    previousQuestionId.current = currentQuestion.question_id;
+  }, [session, roomSessionId]);
 
   
   // 一開始的時候拿不到 question，因為 useEffect 還沒跑完，所以先回傳 loading 的資訊給使用者看
@@ -138,7 +164,8 @@ export function Quiz({quizMode, questionCount, roomSessionId = null, session = n
           return;
         }
         
-        setHints((prevHints) => [...prevHints, result.hint.hint_text]);
+        setHints((prevHints) => [...prevHints, result.hint]);
+        setHasNextHint(result.has_next_hint);
         setVisibleHintCount(result.hints_revealed);
       });
     } 
@@ -159,15 +186,15 @@ export function Quiz({quizMode, questionCount, roomSessionId = null, session = n
           // window.location.assign(`/gameResult.html?sessionId=${encodedSessionId}`);
 
           // 改成 react-router-dom 的 navigate
-          const navigate = useNavigate();
-          navigate(`/game/${encodeURIComponent(sessionId)}/result`); 
+          const encodedSessionId = encodeURIComponent(sessionId);
+          navigate(`/game/${encodedSessionId}/result`); 
           return;
         }
         // 換到下一題的時候記得把 isCorrect 設回 false，不然無法輸入
         resetToEmptyState();
         setQuestion(result.next_question);
         setVisibleHintCount(result.next_question.hints_revealed);
-        setHints([result.next_question.hint.hint_text]);
+        setHints(result.next_question.hint ? [result.next_question.hint] : []);
         setHasNextHint(true);
       }); 
     }
@@ -225,7 +252,8 @@ export function Quiz({quizMode, questionCount, roomSessionId = null, session = n
           console.log('已經沒有下一題了');
 
           const encodedSessionId = encodeURIComponent(sessionId);
-          window.location.assign(`/gameResult.html?sessionId=${encodedSessionId}`);
+          navigate(`/game/${encodedSessionId}/result`);
+          // window.location.assign(`/gameResult.html?sessionId=${encodedSessionId}`);
 
           return;
         }
@@ -234,7 +262,7 @@ export function Quiz({quizMode, questionCount, roomSessionId = null, session = n
         setHasNextHint(true);
         setVisibleHintCount(result.next_question.hints_revealed);
         setQuestion(result.next_question);
-        setHints([result.next_question.hint.hint_text]);      
+        setHints(result.next_question.hint ? [result.next_question.hint] : []);      
       });
     }
     catch (error) {
@@ -242,7 +270,7 @@ export function Quiz({quizMode, questionCount, roomSessionId = null, session = n
     }
   }
 
-  let selectedMode = quizModes[quizMode];
+  let selectedMode = getQuizMode(quizMode);
   return (
     <main className="quiz-page">
       <section className="quiz-shell" aria-labelledby="quiz-title">
@@ -252,7 +280,7 @@ export function Quiz({quizMode, questionCount, roomSessionId = null, session = n
           </Link>
 
           {/* <p className="quiz-eyebrow">ANIME FIVE HINTS</p> */}
-          <h1 id="quiz-title">{quizModeLabels[quizMode]}</h1>
+          <h1 id="quiz-title">{selectedMode.label}</h1>
           {/* {loadError && <p role="alert">{loadError}</p>} */}
 
           <div className="quiz-progress-bar" aria-label={`第 ${question.question_order} 題，共 ${questionCount} 題`}>
@@ -284,13 +312,13 @@ export function Quiz({quizMode, questionCount, roomSessionId = null, session = n
           </div>
 
           <ol className="quiz-hint-list" aria-live="polite">
-          {hints.map((hint, index) => (
+          {hints.map((hint) => (
             <li
               className="quiz-hint-item"
-              data-seal-label={`HINT ${index + 1}`}
-              key={`${question.question_order}-${index}`}
+              key={`${question.question_id}-${hint.hint_order}`}
+              data-seal-label={`HINT ${hint.hint_order}`}            
             >
-              <span>{hint}</span>
+              <span>{hint.hint_text}</span>
             </li>
           ))}
           </ol>
@@ -299,7 +327,7 @@ export function Quiz({quizMode, questionCount, roomSessionId = null, session = n
             className="quiz-button quiz-button-hint"
             type="button"
             onClick={showNextHint}
-            disabled={isBusy || !hasNextHint}
+            disabled={isBusy || !hasNextHint || !isHost}
           >
             {hasNextHint ? '撕開下一個提示' : '提示已全部揭露'}
           </button>
@@ -340,7 +368,7 @@ export function Quiz({quizMode, questionCount, roomSessionId = null, session = n
               className="quiz-button quiz-button-primary"
               type="button"
               onClick={nextQuestion}
-              disabled={isBusy || !hasNextQuestion}
+              disabled={isBusy || !hasNextQuestion || !isHost}
             >
               下一題
             </button>
@@ -349,7 +377,7 @@ export function Quiz({quizMode, questionCount, roomSessionId = null, session = n
               className="quiz-button quiz-button-skip"
               type="button"
               onClick={skipQuestion}
-              disabled={isBusy || !hasNextQuestion}
+              disabled={isBusy || !hasNextQuestion || !isHost}
             >
               跳過此題（本題 0 分）
             </button>

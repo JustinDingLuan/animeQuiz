@@ -1,19 +1,19 @@
 import {supabaseAdmin} from './databaseAdmin.js';
 import {checkAnswer} from './quizAnswer.js';
 
-import { getQuizMode } from '../shared_items/quizConfig.js';
+import { getQuizMode, getQuizModeKey } from '../shared_items/quizConfig.js';
 
-const quizModes = {
-   five_hints_guess_character: {
-      question_type: 'five_hints',
-      answer_type: 'character',
-   },
+// const quizModes = {
+//    five_hints_guess_character: {
+//       question_type: 'five_hints',
+//       answer_type: 'character',
+//    },
 
-   five_hints_guess_anime: {
-      question_type: 'five_hints',
-      answer_type: 'anime',
-   },
-}
+//    five_hints_guess_anime: {
+//       question_type: 'five_hints',
+//       answer_type: 'anime',
+//    },
+// }
 
 function shuffle(array) {
    const result = [...array];
@@ -48,6 +48,18 @@ export async function getQuizSessionState(sessionId) {
       throw new Error('找不到測驗 session');
    }
 
+   if (session.status === 'completed') {
+      return {
+         session_id: session.id,
+         status: 'completed',
+         question_count: session.question_count,
+         current_question: null,
+         current_total_score: await getCurrentTotalScore(sessionId),
+         game_over: true,
+      }
+   }
+
+   // 找到正在進行中的題目
    const {data: activeQuestion, error: activeQuestionError} = await supabaseAdmin
       .from('quiz_session_questions')
       .select('*')
@@ -60,226 +72,261 @@ export async function getQuizSessionState(sessionId) {
       throw activeQuestionError;
    }
 
-}
-
-export async function startQuizSession(sessionId, userId, quizMode, questionCount) {
-   const {data: member, error: memberError} = await supabaseAdmin   
-      .from('quiz_session_members')
-      .select('role')
-      .eq('session_id', sessionId)
-      .eq('user_id', userId)
-      .maybeSingle();
-
-   if (memberError) {
-      throw memberError;
+   if (!activeQuestion) {
+      throw new Error('找不到進行中的題目');
    }
 
-   if (member.role !== 'host') {
-      throw new Error('只有房主可以開始遊戲');
-   }
-
-   const selectedMode = quizModes[quizMode];
-   
-   const { data: questions, error: questionError } = await supabaseAdmin
-      .from('questions')
-      .select('id')
-      .eq('question_type', selectedMode.question_type)
-      .eq('answer_type', selectedMode.answer_type);
-
-   if (questionError) {
-      throw questionError;
-   }
-
-   if (questions.length < questionCount) {
-      console.log(`題庫中 ${selectedMode.question_type} 題目數量不足，只有 ${questions.length} 題`);
-      throw new Error(
-         `題庫中 ${selectedMode.question_type} 題目數量不足`
-      );
-   }
-
-   const shuffledQuestions = shuffle(questions);
-   const selectedQuestions = shuffledQuestions.slice(0, questionCount);
-   const firstQuestion = selectedQuestions[0];
-
-   // 取得第一題的提示
-   const { data: firstHint, error: firstHintError} = await supabaseAdmin
+   // 把這個題目已經顯示的提示帶出來 -> hint order < hint_revealed
+   const {data: currentShowedHints, error: currentHintError} = await supabaseAdmin
       .from('question_hints')
       .select('id, hint_order, hint_text')
-      .eq('question_id', firstQuestion.id)
-      .order('hint_order', { ascending: true })
-      .limit(1)
-      .single();
+      .eq('question_id', activeQuestion.question_id)
+      .lte('hint_order', activeQuestion.hints_revealed)
+      .order('hint_order', { ascending: true });
 
-   if (firstHintError) {      
-      console.log(firstHintError);
-      throw firstHintError;
+   if (currentHintError) {
+      console.error('取得提示失敗：', currentHintError);
+      throw currentHintError;
    }
 
-   // 建立 session 的時間
-   const now = new Date().toISOString();
-   const {data: session, error: sessionError} = await supabaseAdmin
-      .from('quiz_sessions')
-      .update({
-         question_type: selectedMode.question_type,
-         answer_type: selectedMode.answer_type,
-         question_count: questionCount,
-         status: 'in_progress',
-         start: now,
-         last_activity: now,
-         ended: null,
-         // status 有 in_progress, completed, abandoned, lobby
-      })
-      .eq('id', sessionId)
-      .eq('status', 'lobby') // 確保只有在 lobby 狀態下才能開始遊戲
-      .maybeSingle();
+   const quizMode = getQuizModeKey(session.question_type, session.answer_type);
 
-   if (sessionError) {
-      console.log(sessionError);
-      throw sessionError;
-   }
-
-   // 建立題目紀錄，用 map 會建立所有的 rows，只是因為我們會傳第一題回去的時候，他的狀態是 active
-   const quizSessionRows = selectedQuestions.map((question, index) => {
-      const isFirstQuestion = (index === 0);
-      return {
-         session_id: sessionId,
-         question_id: question.id,
-         question_order: index + 1,
-         status: isFirstQuestion ? 'active' : 'pending',
-         hints_revealed: isFirstQuestion ? 1 : 0,
-         score: 500,
-         is_correct: null,
-         user_answer: null,
-      };
-   });
-
-   const { error: quizSessionError } = await supabaseAdmin
-      .from('quiz_session_questions')
-      .insert(quizSessionRows);
-
-   if (quizSessionError) {
-      console.log('建立題目紀錄失敗：', quizSessionError);
-      throw quizSessionError;
-   }   
-      
-   return {
-      session_id: sessionId,
-      question_count: questionCount,
-      // 給前端用的
-      current_question: {
-         question_id: firstQuestion.id,
-         question_order: 1,
-         hint: {
-            hint_order: firstHint.hint_order,
-            hint_text: firstHint.hint_text,
-         },
-         hints_revealed: 1,
-         available_score: 500,
-      }
-   }
-}
-
-export async function createQuizSession(quizMode, questionCount) {
-   console.log(quizMode);
-   console.log(quizModes[quizMode]);
-   const selectedMode = quizModes[quizMode];
-   
-   const { data: questions, error: questionError } = await supabaseAdmin
-      .from('questions')
-      .select('id')
-      .eq('question_type', selectedMode.question_type)
-      .eq('answer_type', selectedMode.answer_type);
-
-   if (questionError) {
-      throw questionError;
-   }
-
-   if (questions.length < questionCount) {
-      console.log(`題庫中 ${selectedMode.question_type} 題目數量不足，只有 ${questions.length} 題`);
-      throw new Error(
-         `題庫中 ${selectedMode.question_type} 題目數量不足`
-      );
-   }
-
-   const shuffledQuestions = shuffle(questions);
-   const selectedQuestions = shuffledQuestions.slice(0, questionCount);
-   const firstQuestion = selectedQuestions[0];
-
-   // 取得第一題的提示
-   const { data: firstHint, error: firstHintError} = await supabaseAdmin
-      .from('question_hints')
-      .select('id, hint_order, hint_text')
-      .eq('question_id', firstQuestion.id)
-      .order('hint_order', { ascending: true })
-      .limit(1)
-      .single();
-
-   if (firstHintError) {      
-      console.log(firstHintError);
-      throw firstHintError;
-   }
-   // 建立 session 的時間
-   const now = new Date().toISOString();
-   const {data: session, error: sessionError} = await supabaseAdmin
-      .from('quiz_sessions')
-      .insert({
-         question_type: selectedMode.question_type,
-         answer_type: selectedMode.answer_type,
-         question_count: questionCount,
-         status: 'in_progress',
-         start: now,
-         last_activity: now,
-         ended: null,
-         // status 有 in_progress, completed, abandoned
-      })
-      .select('id')
-      .single();
-
-   if (sessionError) {
-      console.log(sessionError);
-      throw sessionError;
-   }
-
-
-   // 建立題目紀錄，用 map 會建立所有的 rows，只是因為我們會傳第一題回去的時候，他的狀態是 active
-   const quizSessionRows = selectedQuestions.map((question, index) => {
-      const isFirstQuestion = (index === 0);
-      return {
-         session_id: session.id,
-         question_id: question.id,
-         question_order: index + 1,
-         status: isFirstQuestion ? 'active' : 'pending',
-         hints_revealed: isFirstQuestion ? 1 : 0,
-         score: 500,
-         is_correct: null,
-         user_answer: null,
-      };
-   });
-
-   const { error: quizSessionError } = await supabaseAdmin
-      .from('quiz_session_questions')
-      .insert(quizSessionRows); 
-   if (quizSessionError) {
-      console.log('建立題目紀錄失敗：', quizSessionError);
-      throw quizSessionError;
-   }   
-      
    return {
       session_id: session.id,
-      question_count: questionCount,
-      // 給前端用的
+      status: session.status,
+      quiz_mode: quizMode,
+      question_count: session.question_count,
+      current_total_score: await getCurrentTotalScore(sessionId),
+      game_over: false,
       current_question: {
-         question_id: firstQuestion.id,
-         question_order: 1,
-         hint: {
-            hint_order: firstHint.hint_order,
-            hint_text: firstHint.hint_text,
-         },
-         hints_revealed: 1,
-         available_score: 500,
+         question_id: activeQuestion.question_id,
+         question_order: activeQuestion.question_order,         
+         hints_revealed: activeQuestion.hints_revealed,
+         available_score: activeQuestion.score,
+         is_correct: activeQuestion.is_correct,
+         hints: currentShowedHints,
       }
    }
 }
+
+// export async function startQuizSession(sessionId, userId, quizMode, questionCount) {
+//    const {data: member, error: memberError} = await supabaseAdmin   
+//       .from('quiz_session_members')
+//       .select('role')
+//       .eq('session_id', sessionId)
+//       .eq('user_id', userId)
+//       .maybeSingle();
+
+//    if (memberError) {
+//       throw memberError;
+//    }
+
+//    if (member.role !== 'host') {
+//       throw new Error('只有房主可以開始遊戲');
+//    }
+
+//    const selectedMode = quizModes[quizMode];
+   
+//    const { data: questions, error: questionError } = await supabaseAdmin
+//       .from('questions')
+//       .select('id')
+//       .eq('question_type', selectedMode.question_type)
+//       .eq('answer_type', selectedMode.answer_type);
+
+//    if (questionError) {
+//       throw questionError;
+//    }
+
+//    if (questions.length < questionCount) {
+//       console.log(`題庫中 ${selectedMode.question_type} 題目數量不足，只有 ${questions.length} 題`);
+//       throw new Error(
+//          `題庫中 ${selectedMode.question_type} 題目數量不足`
+//       );
+//    }
+
+//    const shuffledQuestions = shuffle(questions);
+//    const selectedQuestions = shuffledQuestions.slice(0, questionCount);
+//    const firstQuestion = selectedQuestions[0];
+
+//    // 取得第一題的提示
+//    const { data: firstHint, error: firstHintError} = await supabaseAdmin
+//       .from('question_hints')
+//       .select('id, hint_order, hint_text')
+//       .eq('question_id', firstQuestion.id)
+//       .order('hint_order', { ascending: true })
+//       .limit(1)
+//       .single();
+
+//    if (firstHintError) {      
+//       console.log(firstHintError);
+//       throw firstHintError;
+//    }
+
+//    // 建立 session 的時間
+//    const now = new Date().toISOString();
+//    const {data: session, error: sessionError} = await supabaseAdmin
+//       .from('quiz_sessions')
+//       .update({
+//          question_type: selectedMode.question_type,
+//          answer_type: selectedMode.answer_type,
+//          question_count: questionCount,
+//          status: 'in_progress',
+//          start: now,
+//          last_activity: now,
+//          ended: null,
+//          // status 有 in_progress, completed, abandoned, lobby
+//       })
+//       .eq('id', sessionId)
+//       .eq('status', 'lobby') // 確保只有在 lobby 狀態下才能開始遊戲
+//       .maybeSingle();
+
+//    if (sessionError) {
+//       console.log(sessionError);
+//       throw sessionError;
+//    }
+
+//    // 建立題目紀錄，用 map 會建立所有的 rows，只是因為我們會傳第一題回去的時候，他的狀態是 active
+//    const quizSessionRows = selectedQuestions.map((question, index) => {
+//       const isFirstQuestion = (index === 0);
+//       return {
+//          session_id: sessionId,
+//          question_id: question.id,
+//          question_order: index + 1,
+//          status: isFirstQuestion ? 'active' : 'pending',
+//          hints_revealed: isFirstQuestion ? 1 : 0,
+//          score: 500,
+//          is_correct: null,
+//          user_answer: null,
+//       };
+//    });
+
+//    const { error: quizSessionError } = await supabaseAdmin
+//       .from('quiz_session_questions')
+//       .insert(quizSessionRows);
+
+//    if (quizSessionError) {
+//       console.log('建立題目紀錄失敗：', quizSessionError);
+//       throw quizSessionError;
+//    }   
+      
+//    return {
+//       session_id: sessionId,
+//       question_count: questionCount,
+//       // 給前端用的
+//       current_question: {
+//          question_id: firstQuestion.id,
+//          question_order: 1,
+//          hint: {
+//             hint_order: firstHint.hint_order,
+//             hint_text: firstHint.hint_text,
+//          },
+//          hints_revealed: 1,
+//          available_score: 500,
+//       }
+//    }
+// }
+
+// export async function createQuizSession(quizMode, questionCount) {
+//    console.log(quizMode);
+//    console.log(quizModes[quizMode]);
+//    const selectedMode = quizModes[quizMode];
+   
+//    const { data: questions, error: questionError } = await supabaseAdmin
+//       .from('questions')
+//       .select('id')
+//       .eq('question_type', selectedMode.question_type)
+//       .eq('answer_type', selectedMode.answer_type);
+
+//    if (questionError) {
+//       throw questionError;
+//    }
+
+//    if (questions.length < questionCount) {
+//       console.log(`題庫中 ${selectedMode.question_type} 題目數量不足，只有 ${questions.length} 題`);
+//       throw new Error(
+//          `題庫中 ${selectedMode.question_type} 題目數量不足`
+//       );
+//    }
+
+//    const shuffledQuestions = shuffle(questions);
+//    const selectedQuestions = shuffledQuestions.slice(0, questionCount);
+//    const firstQuestion = selectedQuestions[0];
+
+//    // 取得第一題的提示
+//    const { data: firstHint, error: firstHintError} = await supabaseAdmin
+//       .from('question_hints')
+//       .select('id, hint_order, hint_text')
+//       .eq('question_id', firstQuestion.id)
+//       .order('hint_order', { ascending: true })
+//       .limit(1)
+//       .single();
+
+//    if (firstHintError) {      
+//       console.log(firstHintError);
+//       throw firstHintError;
+//    }
+//    // 建立 session 的時間
+//    const now = new Date().toISOString();
+//    const {data: session, error: sessionError} = await supabaseAdmin
+//       .from('quiz_sessions')
+//       .insert({
+//          question_type: selectedMode.question_type,
+//          answer_type: selectedMode.answer_type,
+//          question_count: questionCount,
+//          status: 'in_progress',
+//          start: now,
+//          last_activity: now,
+//          ended: null,
+//          // status 有 in_progress, completed, abandoned
+//       })
+//       .select('id')
+//       .single();
+
+//    if (sessionError) {
+//       console.log(sessionError);
+//       throw sessionError;
+//    }
+
+
+//    // 建立題目紀錄，用 map 會建立所有的 rows，只是因為我們會傳第一題回去的時候，他的狀態是 active
+//    const quizSessionRows = selectedQuestions.map((question, index) => {
+//       const isFirstQuestion = (index === 0);
+//       return {
+//          session_id: session.id,
+//          question_id: question.id,
+//          question_order: index + 1,
+//          status: isFirstQuestion ? 'active' : 'pending',
+//          hints_revealed: isFirstQuestion ? 1 : 0,
+//          score: 500,
+//          is_correct: null,
+//          user_answer: null,
+//       };
+//    });
+
+//    const { error: quizSessionError } = await supabaseAdmin
+//       .from('quiz_session_questions')
+//       .insert(quizSessionRows); 
+//    if (quizSessionError) {
+//       console.log('建立題目紀錄失敗：', quizSessionError);
+//       throw quizSessionError;
+//    }   
+      
+//    return {
+//       session_id: session.id,
+//       question_count: questionCount,
+//       // 給前端用的
+//       current_question: {
+//          question_id: firstQuestion.id,
+//          question_order: 1,
+//          hint: {
+//             hint_order: firstHint.hint_order,
+//             hint_text: firstHint.hint_text,
+//          },
+//          hints_revealed: 1,
+//          available_score: 500,
+//       }
+//    }
+// }
 
 export async function revealNextHint(sessionId) {
    const {data: sessionQuestions, error: sessionQuestionsError} = await supabaseAdmin
@@ -530,7 +577,7 @@ async function updateSessionQuestion(sessionId, questionOrder, expectedStatus, u
       .single();
 
    if (updateQuestionError) {
-      console.error(`更新題目狀態為 ${newStatus} 失敗：`, updateQuestionError);
+      console.error(`更新題目狀態失敗：`, updateQuestionError);
       throw updateQuestionError;
    }
 

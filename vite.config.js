@@ -15,13 +15,21 @@ export default defineConfig({
     },
   },
   // vite 7 使用 rollupOptions 來設定多頁面入口
+  // build: {
+  //   rollupOptions: {
+  //     input: {
+  //       main: resolve(import.meta.dirname, './index.html'),
+  //       gameEntry: resolve(import.meta.dirname, './gameEntry.html'),
+  //       quiz: resolve(import.meta.dirname, './quiz.html'),
+  //       gameResult: resolve(import.meta.dirname, './gameResult.html'),
+  //     },
+  //   },
+  // }
+  // 現在統一讓 index.html 當入口就好
   build: {
     rollupOptions: {
       input: {
-        main: resolve(import.meta.dirname, './index.html'),
-        gameEntry: resolve(import.meta.dirname, './gameEntry.html'),
-        quiz: resolve(import.meta.dirname, './quiz.html'),
-        gameResult: resolve(import.meta.dirname, './gameResult.html'),
+        main: resolve(import.meta.dirname, 'index.html'),
       },
     },
   }
