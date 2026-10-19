@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { apiRequest } from '../api/apiRequest.js';
 import { getQuizMode } from '../../shared_items/quizConfig.js';
+import LoadingDots from '../components/dotsAnimation.jsx';
 
 // const quizModes = {
 //   five_hints_guess_character: {
@@ -34,15 +35,15 @@ import { getQuizMode } from '../../shared_items/quizConfig.js';
 //   return result;
 // }
 
-export function Quiz({quizMode, questionCount, roomSessionId = null, session = null}) {
+export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameStateChange}) {
   const navigate = useNavigate();
-  const isHost = session.viewer === 'host';
+  const isHost = gameState.viewer === 'host';
   // const [roomState, setRoomState] = useState(null);
   // const [loadError, setLoadError] = useState('');
   // const activeQuizMode = roomState?.quiz_mode ?? quizMode;
   // const activeQuestionCount = roomState?.question_count ?? questionCount;
   // 現在會把第一個題目帶進來，可以直接初始化
-  const firstQuestion = session?.current_question;
+  const firstQuestion = gameState?.current_question;
   const [sessionId, setSessionId] = useState(roomSessionId);
   const [question, setQuestion] = useState(firstQuestion ?? null);
   // questionCount 在建立 session 的時候就固定了，不用去更動他
@@ -89,7 +90,7 @@ export function Quiz({quizMode, questionCount, roomSessionId = null, session = n
     // }
 
     // startQuiz();
-    const currentQuestion = session?.current_question;
+    const currentQuestion = gameState?.current_question;
     if (!currentQuestion) return;
 
     const questionChanged =
@@ -99,10 +100,10 @@ export function Quiz({quizMode, questionCount, roomSessionId = null, session = n
     setQuestion(currentQuestion);
     setVisibleHintCount(currentQuestion.hints_revealed);
     setHints(currentQuestion.hints ?? []);
-    setCurrentScore(session.current_total_score ?? 0);
-    setHasNextQuestion(session.question_count > 0);
-    setIsCorrect(currentQuestion.is_correct === true);
     setHasNextHint(currentQuestion.hints_revealed < 5);
+    setCurrentScore(gameState.current_total_score ?? 0);
+    setHasNextQuestion(gameState.question_count > 0);
+    setIsCorrect(currentQuestion.is_correct === true);
 
     if (questionChanged) {
       setUserAnswer('');
@@ -111,26 +112,23 @@ export function Quiz({quizMode, questionCount, roomSessionId = null, session = n
     }
 
     previousQuestionId.current = currentQuestion.question_id;
-  }, [session, roomSessionId]);
+  }, [gameState, roomSessionId]);
 
   
-  // 一開始的時候拿不到 question，因為 useEffect 還沒跑完，所以先回傳 loading 的資訊給使用者看
-  // 等 useEffect 跑完之後，question 就會有值了，畫面就會重新 render
-  if (!question) {
-    return (
-      <main className="quiz-page">
-        <section className="quiz-loading" aria-live="polite">
-          <span className="quiz-loading-spinner" aria-hidden="true" />
-          {/* <p role={loadError ? 'alert' : undefined}>{loadError || '正在準備題目……'}</p> */}
-        </section>
-      </main>
-    );
-  }
+ 
+  // if (!question) {
+  //   return (
+  //     <main className="quiz-page">
+  //       <section className="quiz-loading" aria-live="polite">
+  //         <span className="quiz-loading-spinner" aria-hidden="true" />
+  //         {/* <p role={loadError ? 'alert' : undefined}>{loadError || '正在準備題目……'}</p> */}
+  //       </section>
+  //     </main>
+  //   );
+  // }
   
 
-  function resetToEmptyState() {    
-    // setAnsered(false);
-    // setIsSubmitting(false);        
+  function resetToEmptyState() {               
     setIsCorrect(false);    
     setUserAnswer('');
     setResultMessage('');    
@@ -158,26 +156,67 @@ export function Quiz({quizMode, questionCount, roomSessionId = null, session = n
     try {
       await quizAction('showNextHint', async () => {
         const result = await requestNextHint(sessionId);
-        if (!result.hint) {
-          console.log('沒有更多提示了');
-          setHasNextHint(false);
-          return;
-        }
+        // if (!result.current_question.hints) {
+        //   console.log('沒有更多提示了');
+        //   setHasNextHint(false);
+        //   return;
+        // }
         
-        setHints((prevHints) => [...prevHints, result.hint]);
-        setHasNextHint(result.has_next_hint);
-        setVisibleHintCount(result.hints_revealed);
+        // setHints((prevHints) => [...prevHints, result.hint]);
+        // setHasNextHint(result.has_next_hint);
+        // setVisibleHintCount(result.hints_revealed);
+        onGameStateChange(result);
       });
     } 
     catch (error) {
       console.error('取得下一個提示失敗：', error);
     }
   }
-
+  
+  async function submitQuizAnswer(event) {
+    event.preventDefault();
+    // if (submittingRef.current) {
+      //     return;
+      // }
+      // submittingRef.current = true;
+      // setIsSubmitting(true);
+      
+      const normalizedUserAnswer = userAnswer.trim();
+      if (!sessionId || !question || !normalizedUserAnswer) {
+        console.log('缺少必要的參數', {sessionId, question, normalizedUserAnswer});
+        return;
+      }
+      
+      if (isCorrect) {
+        console.log('已經答對了，無法再提交答案');
+        return;
+      }
+      
+      try {
+        await quizAction('submitQuizAnswer', async () => {
+          const result = await requestCheckAnswer(sessionId, normalizedUserAnswer);        
+          
+          if (result.is_correct) {
+            setIsCorrect(true);
+            setResultMessage(`回答正確！獲得 ${result.score} 分`);
+            setCurrentScore(result.current_total_score);
+          console.log(`回答正確！獲得 ${result.score} 分`);
+        } 
+        else {        
+          setResultMessage(`回答錯誤！目前答對可獲得 ${result.available_score} 分`);
+          setUserAnswer('');
+        }
+      });
+    }
+    catch (error) {
+      console.error('提交答案失敗：', error);
+    }    
+  }
+  
   async function nextQuestion() {
     try {
       await quizAction('nextQuestion', async () => {
-        const result = await requestNextQuestion(sessionId);
+        const result = await requestNextQuestion(sessionId, question.question_order);
 
         if (result.game_over) {
           setHasNextQuestion(false);
@@ -191,11 +230,12 @@ export function Quiz({quizMode, questionCount, roomSessionId = null, session = n
           return;
         }
         // 換到下一題的時候記得把 isCorrect 設回 false，不然無法輸入
-        resetToEmptyState();
-        setQuestion(result.next_question);
-        setVisibleHintCount(result.next_question.hints_revealed);
-        setHints(result.next_question.hint ? [result.next_question.hint] : []);
-        setHasNextHint(true);
+        // resetToEmptyState();
+        // setQuestion(result.current_question);
+        // setVisibleHintCount(result.current_question.hints_revealed);
+        // setHints(result.current_question.hints ? [result.current_question.hints] : []);
+        // setHasNextHint(true);
+        onGameStateChange(result);
       }); 
     }
     catch (error) {
@@ -203,50 +243,10 @@ export function Quiz({quizMode, questionCount, roomSessionId = null, session = n
     }
   }
 
-  async function submitQuizAnswer(event) {
-    event.preventDefault();
-    // if (submittingRef.current) {
-    //     return;
-    // }
-    // submittingRef.current = true;
-    // setIsSubmitting(true);
-
-    const normalizedUserAnswer = userAnswer.trim();
-    if (!sessionId || !question || !normalizedUserAnswer) {
-      console.log('缺少必要的參數', {sessionId, question, normalizedUserAnswer});
-      return;
-    }
-
-    if (isCorrect) {
-      console.log('已經答對了，無法再提交答案');
-      return;
-    }
-    
-    try {
-      await quizAction('submitQuizAnswer', async () => {
-        const result = await requestCheckAnswer(sessionId, normalizedUserAnswer);        
-
-        if (result.is_correct) {
-          setIsCorrect(true);
-          setResultMessage(`回答正確！獲得 ${result.score} 分`);
-          setCurrentScore(result.current_total_score);
-          console.log(`回答正確！獲得 ${result.score} 分`);
-        } 
-        else {        
-          setResultMessage(`回答錯誤！目前答對可獲得 ${result.available_score} 分`);
-          setUserAnswer('');
-        }
-      });
-    }
-    catch (error) {
-      console.error('提交答案失敗：', error);
-    }    
-  }
-
   async function skipQuestion() {    
     try {
       await quizAction('skipQuestion', async () => {
-        const result = await requestSkipQuestion(sessionId);
+        const result = await requestSkipQuestion(sessionId, question.question_order);
         if (result.game_over) {
           setHasNextQuestion(false);
           console.log('已經沒有下一題了');
@@ -258,11 +258,12 @@ export function Quiz({quizMode, questionCount, roomSessionId = null, session = n
           return;
         }
         // 跟下一題的邏輯一樣，換到下一題的時候記得把 isCorrect 設回 false，不然無法輸入
-        resetToEmptyState();
-        setHasNextHint(true);
-        setVisibleHintCount(result.next_question.hints_revealed);
-        setQuestion(result.next_question);
-        setHints(result.next_question.hint ? [result.next_question.hint] : []);      
+        // resetToEmptyState();
+        // setHasNextHint(true);
+        // setVisibleHintCount(result.current_question.hints_revealed);
+        // setQuestion(result.current_question);
+        // setHints(result.current_question.hints ? [result.current_question.hints] : []);      
+        onGameStateChange(result);
       });
     }
     catch (error) {
@@ -271,6 +272,17 @@ export function Quiz({quizMode, questionCount, roomSessionId = null, session = n
   }
 
   let selectedMode = getQuizMode(quizMode);
+  if (pendingAction === 'nextQuestion' || pendingAction === 'skipQuestion') {
+    return (
+      <main className="quiz-page">
+        <section className="quiz-loading" aria-live="polite">
+          <span className="quiz-loading-spinner" aria-hidden="true" />
+          <p>正在載入下一題<LoadingDots /></p>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className="quiz-page">
       <section className="quiz-shell" aria-labelledby="quiz-title">
@@ -343,12 +355,12 @@ export function Quiz({quizMode, questionCount, roomSessionId = null, session = n
               type="text"
               placeholder="輸入你的答案"
               autoComplete="off"
-              disabled={isBusy || isCorrect}
+              disabled={isBusy || isCorrect || !isHost}
             />
             <button
               className="quiz-button quiz-button-primary"
               type="submit"
-              disabled={isBusy || isCorrect || !userAnswer.trim()}
+              disabled={isBusy || isCorrect || !isHost || !userAnswer.trim()}
             >
               提交答案
             </button>
@@ -406,20 +418,21 @@ async function requestCheckAnswer(sessionId, userAnswer) {
   return result;
 }
 
-async function requestNextQuestion(sessionId) {
+async function requestNextQuestion(sessionId, questionOrder) {
   const encodedSessionId = encodeURIComponent(sessionId);
   const result = await apiRequest(`/api/quiz-session/${encodedSessionId}/next-question`, {
     method: 'POST',
+    body: {question_order: questionOrder}
   });
 
   return result;
 }
 
-async function requestSkipQuestion(sessionId) {
+async function requestSkipQuestion(sessionId, questionOrder) {
   const encodedSessionId = encodeURIComponent(sessionId);
   const result = await apiRequest(`/api/quiz-session/${encodedSessionId}/skip-question`, {
     method: 'POST',
+    body: {question_order: questionOrder}
   });
-
   return result;
 }

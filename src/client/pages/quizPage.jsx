@@ -17,7 +17,7 @@ export default function QuizPage() {
   // lobby 給過來的資料
   // const { state } = useLocation();
   const [gameState, setGameState] = useState(null);
-  const [loadError, setLoadError] = useState(null);
+  // const [loadError, setLoadError] = useState(null);
 
   useEffect(() => {
     let isActive = true;
@@ -47,11 +47,11 @@ export default function QuizPage() {
       catch (error) {
         if (!isActive) return;
         console.error('取得遊戲狀態失敗', error);
-        setLoadError(error);
+        // setLoadError(error);
       }
 
       if (isActive) {
-        timeoutId = setTimeout(pollGameState, 2000);
+        timeoutId = setTimeout(pollGameState, 1000);
       }
     }
 
@@ -86,7 +86,8 @@ export default function QuizPage() {
       quizMode={gameState?.quiz_mode}
       questionCount={Number(gameState?.question_count)}
       roomSessionId={sessionId}
-      session={gameState}
+      gameState={gameState}
+      onGameStateChange={setGameState}
     />
   );
 }

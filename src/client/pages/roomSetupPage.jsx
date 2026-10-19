@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase.js';
 import { apiRequest } from '../api/apiRequest.js';
 import GameSettingsForm from '../components/GameSettingsForm.jsx';
+import LoadingDots from '../components/dotsAnimation.jsx';
 import '../styles/styles.css';
 import '../../auth.css';
 
@@ -122,7 +123,7 @@ function SelectGameMode({mode, players, onChange, onConfirm}) {
 
 }
 
-function RoomEntry({mode, nickname, roomCode, onnicknameChange, onRoomCodeChange, onCreate, onJoin, onBack}) {
+function RoomEntry({mode, nickname, roomCode, errorMessage, onnicknameChange, onRoomCodeChange, onCreate, onJoin, onBack}) {
    console.log('we are in room entry page');
    const isCreate = mode === 'create';   
 
@@ -130,17 +131,19 @@ function RoomEntry({mode, nickname, roomCode, onnicknameChange, onRoomCodeChange
       <>
          <main className="game-entry-main">
             <section className="setup-card">            
-               <form className="setup-form">                  
+               <form className="setup-form">                   
                   <input  
                      id="nickname"
+                     className="input-bar-input"
                      type="text"                    
                      placeholder="請輸入暱稱" 
                      value={nickname}
                      onChange={(e) => onnicknameChange(e.target.value)}
-                  />
+                  />                  
                   {mode === 'join' && (
                      <input    
                         id="roomCode"
+                        className="input-bar-input"
                         type="text"                    
                         placeholder="請輸入房間代碼" 
                         value={roomCode}
@@ -155,6 +158,8 @@ function RoomEntry({mode, nickname, roomCode, onnicknameChange, onRoomCodeChange
                   <button className="setup-button" type="button" onClick={onBack}>
                      返回主選單
                   </button>
+
+                  <p> {errorMessage}</p>
                </form>
             </section>
          </main>
@@ -253,7 +258,7 @@ function Lobby({sessionId, roomCode, myRole, nickname, players, onBack}) {
                   <p>你的角色：{myRole}</p>
                   <p>你的名稱：{nickname}</p>
                   <p>已加入玩家人數：{lobbyInfo?.playerCount}/{lobbyInfo?.room_capacity}</p>
-                  <p>等待其他玩家加入...</p>
+                  <p>等待其他玩家加入<LoadingDots /></p>
                   
                {myRole === 'host' && (                  
                   <GameSettingsForm onStart={handleStartGame} onBack={onBack} disabled={isStarting}></GameSettingsForm>
@@ -273,6 +278,7 @@ export default function RoomSetupPage() {
    const [mode, setMode] = useState('create');
    const [nickname, setnickname] = useState('');
    const [room, setRoom] = useState(null);
+   const [errorMessage, setErrorMessage] = useState('');
 
    function handlePlayerCount() {
       setScreen('select-game-mode');
@@ -340,8 +346,9 @@ export default function RoomSetupPage() {
          setScreen('lobby');
       }
       catch (error) {
+         setErrorMessage(`${error.message}`);
          console.error('加入房間失敗：', error);
-         alert(`加入房間失敗：${error.message}`);
+         // alert(`加入房間失敗：${error.message}`);
       }
    }
 
@@ -381,7 +388,8 @@ export default function RoomSetupPage() {
             (<RoomEntry 
                mode={mode} 
                nickname={nickname} 
-               roomCode={roomCode} 
+               roomCode={roomCode}
+               errorMessage={errorMessage}
                onnicknameChange={setnickname} 
                onRoomCodeChange={setRoomCode} 
                onCreate={handleCreateRoom} 

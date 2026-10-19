@@ -2,18 +2,18 @@ import { Router } from 'express';
 import { requireAuth, getUserRole } from '../auth.js';
 
 import {
-  checkQuizAnswer,  
-  revealNextHint,
-  nextQuestion,
-  skipQuestion,
-  getQuizResult,
-  getQuizSessionState
+   checkQuizAnswer,  
+   revealNextHint,
+   advance_to_next_question,
+   getQuizResult,
+   getQuizSessionState
 } from '../quizSession.js';
 
 const router = Router();
 
 router.post(
    '/quiz-session/:sessionId/check-quiz-answer',
+   requireAuth,
    // request.body 是 HTTP request 的資料內容，只是剛好叫做 body，不是 html 裡面的那個 <body>
    async (request, response) => {
       const {sessionId} = request.params;
@@ -22,6 +22,15 @@ router.post(
       if (!sessionId || typeof userAnswer !== 'string' || !userAnswer.trim()) {
          return response.status(400).json({
          message: 'Session ID 或答案格式錯誤',
+         });
+      }
+
+      const userId = request.user.id;
+      const role = await getUserRole(sessionId, userId);
+
+      if (role !== 'host') {
+         return response.status(403).json({
+         message: '只有該房間的主持人可以進行此操作',
          });
       }
 
@@ -137,8 +146,8 @@ router.post(
 
       try {
          const result = await revealNextHint(sessionId);
-
-         return response.status(200).json(result);
+         const state = await getQuizSessionState(sessionId);
+         return response.status(200).json({...state, viewer: role});
       } 
       catch (error) {
          console.error(
@@ -149,7 +158,7 @@ router.post(
          return response.status(500).json({
          message: '取得下一個提示失敗',
          });
-      }
+      }   
    }
 );
 
@@ -175,8 +184,10 @@ router.post(
       }
 
       try {
-         const result = await nextQuestion(sessionId); 
-         return response.status(200).json(result);
+         const question_order = request.body.question_order || null; // 如果前端沒有傳 question_order，就設為 null
+         const result = await advance_to_next_question(sessionId, userId, question_order, 'answered'); 
+         const state = await getQuizSessionState(sessionId);
+         return response.status(200).json({...state, viewer: role});
       }
       catch (error) {
          console.error(
@@ -213,8 +224,10 @@ router.post(
       }
 
       try {
-         const result = await skipQuestion(sessionId); 
-         return response.status(200).json(result);
+         const question_order = request.body.question_order || null; // 如果前端沒有傳 question_order，就設為 null
+         const result = await advance_to_next_question(sessionId, userId, question_order, 'skipped');
+         const state = await getQuizSessionState(sessionId);
+         return response.status(200).json({...state, viewer: role});
       }
       catch (error) {
          console.error(

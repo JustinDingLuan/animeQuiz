@@ -483,3 +483,33 @@ h1 {
     transition-duration: 0.01ms;
   }
 }
+
+.input-bar {
+  display: grid;
+  /* 這邊設定成兩欄大小(直接照抄 quiz.css 過來的，調整成衣欄大小就好) */
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+} 
+
+.input-bar-input {
+  width: 100%;
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid #dcd6e8;
+  border-radius: 13px;
+  outline: none;
+  color: var(--quiz-ink);
+  background: rgba(255, 255, 255, 0.85);
+  font: inherit;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.input-bar-input:focus {
+  border-color: var(--quiz-purple);
+  box-shadow: 0 0 0 4px rgba(109, 74, 255, 0.12);
+}
+
+.input-bar-input:disabled {
+  color: #8d8797;
+  background: #f3f1f6;
+}

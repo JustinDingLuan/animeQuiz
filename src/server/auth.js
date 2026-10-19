@@ -138,7 +138,7 @@ export async function getUserRole(sessionId, userId) {
       .select('role')
       .eq('session_id', sessionId)
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
 
    if (error) {
       throw error;

@@ -82,3 +82,11 @@ server 只會用在 dev command 的時候
 
 ## 20261014
 - hints 改成回傳物件形式，顯示的時候再把物件的內容取出
+
+## 20261019
+- 有些 function 要是 atomic rpc 才能讓遊戲進程正確，例如 next question，這個 function 目前要做的事情有
+    - 找到 session 中 question 狀態為 active 的題目
+    - 更新為 answered
+    - 把下一題的第一個提示帶出來
+    - 更新下一題為 active
+    - return 下一題應有的內容(question_id, question_order,...)

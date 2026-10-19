@@ -529,42 +529,42 @@ export async function checkQuizAnswer(sessionId, userAnswer) {
    };
 }
 
-async function getSessionQuestion(sessionId, questionOrder, status, mustExist=true) {
-   if (!sessionId) {
-      throw new Error('Session ID is required');
-   }
+// async function getSessionQuestion(sessionId, questionOrder, status, mustExist=true) {
+//    if (!sessionId) {
+//       throw new Error('Session ID is required');
+//    }
    
-   if (questionOrder === null && status === null) {
-      console.log('Either question order or status must be provided');
-      throw new Error('Either question order or status must be provided');
-   }
+//    if (questionOrder === null && status === null) {
+//       console.log('Either question order or status must be provided');
+//       throw new Error('Either question order or status must be provided');
+//    }
 
-   let query = supabaseAdmin
-      .from('quiz_session_questions')
-      .select('*')
-      .eq('session_id', sessionId)
+//    let query = supabaseAdmin
+//       .from('quiz_session_questions')
+//       .select('*')
+//       .eq('session_id', sessionId)
    
-   if (questionOrder !== null) {
-      query = query.eq('question_order', questionOrder);
-   }
+//    if (questionOrder !== null) {
+//       query = query.eq('question_order', questionOrder);
+//    }
 
-   if (status !== null) {
-      query = query.eq('status', status);
-   }   
+//    if (status !== null) {
+//       query = query.eq('status', status);
+//    }   
 
-   const {data: question, error: questionError} = mustExist ? await query.single() : await query.maybeSingle();   
-   if (questionError) {
-      console.error('取得進行中的題目失敗：', questionError);
-      throw questionError;
-   }
+//    const {data: question, error: questionError} = mustExist ? await query.single() : await query.maybeSingle();   
+//    if (questionError) {
+//       console.error('取得進行中的題目失敗：', questionError);
+//       throw questionError;
+//    }
 
-   if (mustExist && !question) {
-      console.error('找不到進行中的題目');
-      throw new Error('找不到進行中的題目');
-   }
+//    if (mustExist && !question) {
+//       console.error('找不到進行中的題目');
+//       throw new Error('找不到進行中的題目');
+//    }
 
-   return question;
-}
+//    return question;
+// }
 
 async function updateSessionQuestion(sessionId, questionOrder, expectedStatus, updates) {
    const {data: updatedQuestion, error: updateQuestionError} = await supabaseAdmin
@@ -600,145 +600,168 @@ async function updateSessionStatus(sessionId, newStatus) {
    return updatedSession;
 }
 
-export async function nextQuestion(sessionId) {
-   const currentQuestion = await getSessionQuestion(sessionId, null, 'active', true);
+// export async function nextQuestion(sessionId) {
+//    const currentQuestion = await getSessionQuestion(sessionId, null, 'active', true);
 
-   // 更新目前題目的狀態為 answered
-   const updatedQuestion = await updateSessionQuestion(sessionId, currentQuestion.question_order, 'active', { status: 'answered' });   
+//    // 更新目前題目的狀態為 answered
+//    const updatedQuestion = await updateSessionQuestion(sessionId, currentQuestion.question_order, 'active', { status: 'answered' });   
 
-   const nextQuestionOrder = currentQuestion.question_order + 1;
-   const nextQuestion = await getSessionQuestion(sessionId, nextQuestionOrder, 'pending', false);
+//    const nextQuestionOrder = currentQuestion.question_order + 1;
+//    const nextQuestion = await getSessionQuestion(sessionId, nextQuestionOrder, 'pending', false);
 
-   if (!nextQuestion) {
-      // 如果是最後一題，直接回傳 game_over = true，交給前端跳轉畫面
-      // 並且更新此次 session 的狀態為 completed
-      const updatedSession = await updateSessionStatus(sessionId, 'completed');
+//    if (!nextQuestion) {
+//       // 如果是最後一題，直接回傳 game_over = true，交給前端跳轉畫面
+//       // 並且更新此次 session 的狀態為 completed
+//       const updatedSession = await updateSessionStatus(sessionId, 'completed');
 
-      return {
-         // current_total_score: currentTotalScore,
-         message: '已經是最後一題',
-         game_over: true,
-      };
-   }
+//       return {
+//          // current_total_score: currentTotalScore,
+//          message: '已經是最後一題',
+//          game_over: true,
+//       };
+//    }
 
-   // 有下一題 => 先拿下一題的第一個提示
-   const {data: firstHint, error: firstHintError} = await supabaseAdmin
-      .from('question_hints')
-      .select('id, hint_order, hint_text')
-      .eq('question_id', nextQuestion.question_id)
-      .order('hint_order', { ascending: true })
-      .limit(1)
-      .single();
+//    // 有下一題 => 先拿下一題的第一個提示
+//    const {data: firstHint, error: firstHintError} = await supabaseAdmin
+//       .from('question_hints')
+//       .select('id, hint_order, hint_text')
+//       .eq('question_id', nextQuestion.question_id)
+//       .order('hint_order', { ascending: true })
+//       .limit(1)
+//       .single();
 
-   if (firstHintError) {
-      console.error('取得下一題的第一個提示失敗：', firstHintError);
-      throw firstHintError;
-   }
+//    if (firstHintError) {
+//       console.error('取得下一題的第一個提示失敗：', firstHintError);
+//       throw firstHintError;
+//    }
 
-   // 更新下一題的狀態為 active
-   const updatedNextQuestion = await updateSessionQuestion(sessionId, nextQuestion.question_order, 'pending', { status: 'active', hints_revealed: 1 });
+//    // 更新下一題的狀態為 active
+//    const updatedNextQuestion = await updateSessionQuestion(sessionId, nextQuestion.question_order, 'pending', { status: 'active', hints_revealed: 1 });
 
-   const {error: updateActivityError} = await supabaseAdmin
-      .from('quiz_sessions')
-      .update({last_activity: new Date().toISOString()})
-      .eq('id', sessionId);
+//    const {error: updateActivityError} = await supabaseAdmin
+//       .from('quiz_sessions')
+//       .update({last_activity: new Date().toISOString()})
+//       .eq('id', sessionId);
       
-   if (updateActivityError) {
-      console.error('更新最後互動時間失敗：', updateActivityError);
-      throw updateActivityError;
-   }
+//    if (updateActivityError) {
+//       console.error('更新最後互動時間失敗：', updateActivityError);
+//       throw updateActivityError;
+//    }
 
-   return {
-      // current_total_score: currentTotalScore,
-      next_question: {
-         question_id: nextQuestion.question_id,
-         question_order: nextQuestion.question_order,
-         hint: {
-            hint_order: firstHint.hint_order,
-            hint_text: firstHint.hint_text,
-         },
-         hints_revealed: 1,
-         available_score: nextQuestion.score,
-      }
-   };
-}
+//    return {
+//       // current_total_score: currentTotalScore,
+//       next_question: {
+//          question_id: nextQuestion.question_id,
+//          question_order: nextQuestion.question_order,
+//          hint: {
+//             hint_order: firstHint.hint_order,
+//             hint_text: firstHint.hint_text,
+//          },
+//          hints_revealed: 1,
+//          available_score: nextQuestion.score,
+//       }
+//    };
+// }
 
-export async function skipQuestion(sessionId) {
-   const currentQuestion = await getSessionQuestion(sessionId, null, 'active', true);
-   const {data: totalScore, error: currentScoreError} = await supabaseAdmin
-      .from('quiz_session_questions')
-      .select('score')
-      .eq('session_id', sessionId)      
-      .eq('status', 'answered')
-      .eq('is_correct', true);
+// export async function skipQuestion(sessionId) {
+//    const currentQuestion = await getSessionQuestion(sessionId, null, 'active', true);
+//    const {data: totalScore, error: currentScoreError} = await supabaseAdmin
+//       .from('quiz_session_questions')
+//       .select('score')
+//       .eq('session_id', sessionId)      
+//       .eq('status', 'answered')
+//       .eq('is_correct', true);
 
-   if (currentScoreError) {
-      console.error('取得目前總分失敗：', currentScoreError);
-      throw currentScoreError;
-   }
+//    if (currentScoreError) {
+//       console.error('取得目前總分失敗：', currentScoreError);
+//       throw currentScoreError;
+//    }
 
-   const currentTotalScore = totalScore.reduce((sum, item) => sum + item.score, 0);
+//    const currentTotalScore = totalScore.reduce((sum, item) => sum + item.score, 0);
 
-   // 更新目前題目的狀態為 skipped
-   const updatedCurrentQuestion = await updateSessionQuestion(sessionId, currentQuestion.question_order, 'active', { status: 'skipped' });
+//    // 更新目前題目的狀態為 skipped
+//    const updatedCurrentQuestion = await updateSessionQuestion(sessionId, currentQuestion.question_order, 'active', { status: 'skipped' });
    
    
-   // 帶出下一題
-   const nextQuestionOrder = currentQuestion.question_order + 1;
-   const nextQuestion = await getSessionQuestion(sessionId, nextQuestionOrder, 'pending', false);
-   if (!nextQuestion) {
-      // 如果是最後一題，直接回傳 game_over = true，交給前端跳轉畫面
-      // 並且更新此次 session 的狀態為 completed
-      const updatedSession = await updateSessionStatus(sessionId, 'completed');
+//    // 帶出下一題
+//    const nextQuestionOrder = currentQuestion.question_order + 1;
+//    const nextQuestion = await getSessionQuestion(sessionId, nextQuestionOrder, 'pending', false);
+//    if (!nextQuestion) {
+//       // 如果是最後一題，直接回傳 game_over = true，交給前端跳轉畫面
+//       // 並且更新此次 session 的狀態為 completed
+//       const updatedSession = await updateSessionStatus(sessionId, 'completed');
 
-      return {
-         current_total_score: currentTotalScore,
-         message: '已經是最後一題',
-         game_over: true,
-      };
-   }
+//       return {
+//          current_total_score: currentTotalScore,
+//          message: '已經是最後一題',
+//          game_over: true,
+//       };
+//    }
 
-   const {data: firstHint, error: firstHintError} = await supabaseAdmin
-      .from('question_hints')
-      .select('id, hint_order, hint_text')
-      .eq('question_id', nextQuestion.question_id)
-      .order('hint_order', { ascending: true })
-      .limit(1)
-      .single();
+//    const {data: firstHint, error: firstHintError} = await supabaseAdmin
+//       .from('question_hints')
+//       .select('id, hint_order, hint_text')
+//       .eq('question_id', nextQuestion.question_id)
+//       .order('hint_order', { ascending: true })
+//       .limit(1)
+//       .single();
 
-   if (firstHintError) {
-      console.error('取得下一題的第一個提示失敗：', firstHintError);
-      throw firstHintError;
-   }
+//    if (firstHintError) {
+//       console.error('取得下一題的第一個提示失敗：', firstHintError);
+//       throw firstHintError;
+//    }
 
-   // 更新下一題的狀態為 active
-   const updatedNextQuestion = await updateSessionQuestion(sessionId, nextQuestion.question_order, 'pending', { status: 'active', hints_revealed: 1 });
+//    // 更新下一題的狀態為 active
+//    const updatedNextQuestion = await updateSessionQuestion(sessionId, nextQuestion.question_order, 'pending', { status: 'active', hints_revealed: 1 });
 
-   const {error: updateActivityError} = await supabaseAdmin
-      .from('quiz_sessions')
-      .update({last_activity: new Date().toISOString()})
-      .eq('id', sessionId);
+//    const {error: updateActivityError} = await supabaseAdmin
+//       .from('quiz_sessions')
+//       .update({last_activity: new Date().toISOString()})
+//       .eq('id', sessionId);
       
-   if (updateActivityError) {
-      console.error('更新最後互動時間失敗：', updateActivityError);
-      throw updateActivityError;
-   }
+//    if (updateActivityError) {
+//       console.error('更新最後互動時間失敗：', updateActivityError);
+//       throw updateActivityError;
+//    }
    
-   return {
-      current_total_score: currentTotalScore,
-      message: '已跳過目前題目',
-      next_question: {
-         question_id: nextQuestion.question_id,
-         question_order: nextQuestion.question_order,
-         hint: {
-            hint_order: firstHint.hint_order,
-            hint_text: firstHint.hint_text,
-         },
-         hints_revealed: 1,
-         available_score: nextQuestion.score,
-      },
-      game_over: false,
-   };
+//    return {
+//       current_total_score: currentTotalScore,
+//       message: '已跳過目前題目',
+//       next_question: {
+//          question_id: nextQuestion.question_id,
+//          question_order: nextQuestion.question_order,
+//          hint: {
+//             hint_order: firstHint.hint_order,
+//             hint_text: firstHint.hint_text,
+//          },
+//          hints_revealed: 1,
+//          available_score: nextQuestion.score,
+//       },
+//       game_over: false,
+//    };
+// }
+
+export async function advance_to_next_question(sessionId, user_id, expected_current_question_order, action) {
+   // action: answered for next_question, skipped for skip_question
+   const {data, error} = await supabaseAdmin.rpc('advance_question', {
+      p_session_id: sessionId,
+      p_user_id: user_id,
+      p_expected_current_question_order: expected_current_question_order,
+      p_action: action,      
+   });
+   // data 有區分
+   // 如果結束-> data = { game_over: true, completed_question_order:  }
+   // 如果還有下一題 -> data = { game_over: false, question_id, question_order:  }
+   if (error) {
+      console.error('前進下一題失敗：', error);
+      throw error;
+   }
+
+   // const state = await getQuizSessionState(sessionId); 
+
+
+
+   return data;
 }
 
 export async function getQuizResult(sessionId) {
