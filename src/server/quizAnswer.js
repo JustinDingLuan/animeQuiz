@@ -6,7 +6,6 @@ function normalizeAnswer(answer) {
    return answer.trim().toLowerCase();
 }
 
-
 async function checkCharacterAnswer(questionId, userAnswer) {
    // .single() 會資料變成物件，這樣才可以直接使用 .display_name 取得資料
    // 如果 data 有不等於一筆的資料 => data = null
@@ -87,5 +86,60 @@ export async function checkAnswer(questionId, userAnswer) {
    }
    else {
       throw new Error(`不支援的 answer_type: ${question.answer_type}`);
+   }
+}
+
+export async function getAnswer(questionId, answerType) {   
+   if (answerType === 'character') {
+      const {data: groundTruth, error:relationError} = await supabaseAdmin.from('character_question_answers')
+      .select('character_id')
+      .eq('question_id', questionId)
+      .single();
+
+      if (relationError) {
+         console.error("查詢答案失敗");
+         throw relationError;
+      }
+      
+      const {data: character, error: characterError} = await supabaseAdmin.from('characters')
+      .select('display_name, aliases')
+      .eq('id', groundTruth.character_id)
+      .single();
+
+      if (characterError) {
+         console.error("查詢角色失敗");
+         throw characterError;
+      }
+
+      return {
+         answer: [character.display_name, ...(character.aliases ?? [])]
+      }
+   }
+   else if (answerType === 'anime') {
+      const {data: groundTruth, error:relationError} = await supabaseAdmin.from('anime_question_answers')
+      .select('anime_id')
+      .eq('question_id', questionId)
+      .single();
+
+      if (relationError) {
+         console.error("查詢答案失敗");
+         throw relationError;
+      }
+      
+      const {data: anime, error: animeError} = await supabaseAdmin.from('animes')
+      .select('title, aliases')
+      .eq('id', groundTruth.anime_id)
+      .single();
+
+      if (animeError) {
+         console.error("查詢動畫失敗");
+         throw animeError;
+      }
+      return {
+         answer: [anime.title, ...(anime.aliases ?? [])]
+      }
+   }
+   else {
+      throw new Error(`不支援的 answer_type: ${answerType}`);
    }
 }

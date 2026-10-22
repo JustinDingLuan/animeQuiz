@@ -90,3 +90,8 @@ server 只會用在 dev command 的時候
     - 把下一題的第一個提示帶出來
     - 更新下一題為 active
     - return 下一題應有的內容(question_id, question_order,...)
+
+## 20261022
+接下來進度
+- 房主顯示答案
+- 讓玩家輪流回答

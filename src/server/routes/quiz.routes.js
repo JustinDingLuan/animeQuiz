@@ -9,6 +9,10 @@ import {
    getQuizSessionState
 } from '../quizSession.js';
 
+import {
+   getAnswer
+} from '../quizAnswer.js';
+
 const router = Router();
 
 router.post(
@@ -317,4 +321,47 @@ router.get(
    }
 );
 
+router.post(
+   '/quiz-session/:sessionId/get-answer',
+   requireAuth,
+   async (request, response) => {
+      const { sessionId } = request.params;
+      const { answerType } = request.body;
+      
+      if (!sessionId) {
+         return response.status(400).json({
+         message: '缺少 sessionId',
+         });
+      }
+      
+      const userId = request.user.id;
+      const role = await getUserRole(sessionId, userId);
+
+      if (!role) {
+         return response.status(403).json({
+         message: '只有該房間的成員可以進行此操作',
+         });
+      }
+      if (!answerType) {
+         return response.status(400).json({
+         message: '缺少 answerType',
+         });
+      }
+
+      try {
+         const answer = await getAnswer(sessionId, answerType);
+         return response.status(200).json(answer);
+      }
+      catch (error) {
+         console.error(
+         '取得答案失敗：',
+         error
+         );
+
+         return response.status(500).json({
+         message: '取得答案失敗',
+         }); 
+      }
+   }
+);
 export default router;

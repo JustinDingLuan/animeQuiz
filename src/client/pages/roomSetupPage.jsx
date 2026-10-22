@@ -28,11 +28,6 @@ async function ensureAuthSession() {
    return data.session;
 }
 
-// function startGame(roomCode) {
-//    // 要補上驗證房間碼的部分
-//    // 這邊讓房主點擊開始遊戲後，要讓房主主導接下來的選擇內容
-//    window.location.assign(`./gameEntry.html?roomCode=${roomCode}`);
-// }
 
 function Menu({onCreate, onJoin}) {
    return (
@@ -56,7 +51,7 @@ function Menu({onCreate, onJoin}) {
 }
 
 function SelectPlayers({playerCount, onChange, onConfirm}) {
-   console.log('we are in select players page');
+   
    return (
       <>
          <main className="game-entry-main">
@@ -81,8 +76,7 @@ function SelectPlayers({playerCount, onChange, onConfirm}) {
    )
 }
 
-function SelectGameMode({mode, players, onChange, onConfirm}) {
-   console.log('we are in select game mode page');
+function SelectGameMode({mode, players, onChange, onConfirm}) {   
    return players > 1 ? (
       <>
          <main className="game-entry-main">
@@ -123,8 +117,7 @@ function SelectGameMode({mode, players, onChange, onConfirm}) {
 
 }
 
-function RoomEntry({mode, nickname, roomCode, errorMessage, onnicknameChange, onRoomCodeChange, onCreate, onJoin, onBack}) {
-   console.log('we are in room entry page');
+function RoomEntry({mode, nickname, roomCode, errorMessage, onnicknameChange, onRoomCodeChange, onCreate, onJoin, onBack}) {   
    const isCreate = mode === 'create';   
 
    return (
@@ -192,7 +185,7 @@ function Lobby({sessionId, roomCode, myRole, nickname, players, onBack}) {
             if (!isActive) return;
 
             setLobbyInfo(result);
-            console.log('lobby info:', result);
+            // console.log('lobby info:', result);
             // 如果身分是 player，且遊戲已經開始了，就導向到遊戲頁面
             if (myRole === 'player' && result.status === 'in_progress') {               
                navigate(`/game/${sessionIdEncoded}`);
@@ -293,12 +286,12 @@ export default function RoomSetupPage() {
 
       try {
          const user_session = await ensureAuthSession();
-         console.log('目前使用者 id:', user_session?.user?.id);
+         // console.log('目前使用者 id:', user_session?.user?.id);
          if (!user_session) {
             throw new Error('無法取得使用者 session');
          }
 
-         // api request 會自動加入 token         
+         // api request 會自動加入 token
          const result = await apiRequest('/api/create-room', {
             method: 'POST',
             headers: {
@@ -328,7 +321,7 @@ export default function RoomSetupPage() {
          if (!user_session) {
             throw new Error('無法取得使用者 session');
          }
-         console.log('目前使用者 id:', user_session?.user?.id);
+         // console.log('目前使用者 id:', user_session?.user?.id);
 
          const result = await apiRequest('/api/join-room', {
             method: 'POST',

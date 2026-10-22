@@ -66,30 +66,12 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
   const [hasNextHint, setHasNextHint] = useState(true);
   const [hasNextQuestion, setHasNextQuestion] = useState(true);
 
+  // 給房主用
+  const [answer, setAnswer] = useState([]);
+
 
   const previousQuestionId = useRef(null);
-  useEffect(() => {    
-    // async function startQuiz() {
-    //   try {
-    //     // resetToEmptyState();
-
-    //     // const session = await requestQuizSession(quizMode, questionCount);
-    //     setSessionId(roomSessionId);        
-
-    //     const currentQuestion = session.current_question;
-    //     setQuestion(currentQuestion);
-    //     setVisibleHintCount(currentQuestion.hints_revealed);
-    //     setHints(currentQuestion.hints ?? []);
-        
-    //     sessionStorage.setItem('quizSessionId', session.session_id);
-
-    //   } 
-    //   catch (error) {
-    //     console.error('建立測驗失敗：', error);
-    //   }
-    // }
-
-    // startQuiz();
+  useEffect(() => {
     const currentQuestion = gameState?.current_question;
     if (!currentQuestion) return;
 
@@ -212,6 +194,20 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
       console.error('提交答案失敗：', error);
     }    
   }
+
+  async function getAnswer() {
+    const answer_type = getQuizMode(quizMode).answer_type;
+
+    try {
+      await quizAction('getAnswer', async () => {
+        const result = await requestAnswer(sessionId, answer_type);
+        setAnswer(result.answer);
+      });
+    }
+    catch (error) {
+      console.error('取得答案失敗：', error);
+    }
+  }
   
   async function nextQuestion() {
     try {
@@ -312,7 +308,13 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
           </div>
         </header>
 
-        <section className="quiz-hints-card" aria-labelledby="quiz-hints-title">
+        {isHost && gameState.answer(
+          <div className="quiz-answer-reveal">
+            <p>可接受答案：<strong>{gameState.answer.join(', ')}</strong></p>
+          </div>
+        )}
+
+        <section className="quiz-hints-card" aria-labelledby="quiz-hints-title">          
           <div className="quiz-section-heading">
             <div>
               <p className="quiz-section-kicker">逐步揭密</p>
@@ -433,6 +435,15 @@ async function requestSkipQuestion(sessionId, questionOrder) {
   const result = await apiRequest(`/api/quiz-session/${encodedSessionId}/skip-question`, {
     method: 'POST',
     body: {question_order: questionOrder}
+  });
+  return result;
+}
+
+async function requestAnswer(sessionId, answerType) {
+  const encodedSessionId = encodeURIComponent(sessionId);
+  const result = await apiRequest(`/api/quiz-session/${encodedSessionId}/get-answer`, {
+    method: 'POST',
+    body: {answerType}
   });
   return result;
 }
