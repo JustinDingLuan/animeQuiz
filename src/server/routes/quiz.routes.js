@@ -325,8 +325,7 @@ router.post(
    '/quiz-session/:sessionId/get-answer',
    requireAuth,
    async (request, response) => {
-      const { sessionId } = request.params;
-      const { answerType } = request.body;
+      const { sessionId } = request.params;      
       
       if (!sessionId) {
          return response.status(400).json({
@@ -337,19 +336,14 @@ router.post(
       const userId = request.user.id;
       const role = await getUserRole(sessionId, userId);
 
-      if (!role) {
+      if (!role || role !== 'host') {
          return response.status(403).json({
-         message: '只有該房間的成員可以進行此操作',
+         message: '只有擁有權限的人可以進行此操作',
          });
       }
-      if (!answerType) {
-         return response.status(400).json({
-         message: '缺少 answerType',
-         });
-      }
-
+      
       try {
-         const answer = await getAnswer(sessionId, answerType);
+         const answer = await getAnswer(sessionId);
          return response.status(200).json(answer);
       }
       catch (error) {

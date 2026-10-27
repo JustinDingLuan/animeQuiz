@@ -67,10 +67,12 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
   const [hasNextQuestion, setHasNextQuestion] = useState(true);
 
   // 給房主用
+  const [questionId, setQuestionId] = useState(null);
   const [answer, setAnswer] = useState([]);
 
-
   const previousQuestionId = useRef(null);
+
+  // 重新 render 畫面用，每兩秒都重新 render 畫面藉此同步所有人畫面
   useEffect(() => {
     const currentQuestion = gameState?.current_question;
     if (!currentQuestion) return;
@@ -94,9 +96,38 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
     }
 
     previousQuestionId.current = currentQuestion.question_id;
+    setQuestionId(currentQuestion.question_id);
   }, [gameState, roomSessionId]);
 
-  
+  // for 房主畫面用，所以當 questionId 以及 answer 有改變時才變更。目前只有放上顯示答案的部分
+  useEffect(() => {
+    let isActive = true;
+    async function loadAnswer() {
+      if (!isHost || !questionId || !sessionId) {
+        return;
+      }
+
+      try {
+        const result = await requestAnswer(sessionId);
+        if (isActive && result.questionId === questionId) {
+          setAnswer(result.answer);
+        }
+
+        if (result.questionId !== questionId) {
+          console.error(`答案對應的題目 id 跟預期的不相符`)
+        }
+      } 
+      catch (error) {
+        console.error('取得答案失敗：', error);
+      }
+    }
+
+    loadAnswer();
+
+    return () => {
+      isActive = false;
+    };
+  }, [isHost, questionId, sessionId]);
  
   // if (!question) {
   //   return (
@@ -193,21 +224,7 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
     catch (error) {
       console.error('提交答案失敗：', error);
     }    
-  }
-
-  async function getAnswer() {
-    const answer_type = getQuizMode(quizMode).answer_type;
-
-    try {
-      await quizAction('getAnswer', async () => {
-        const result = await requestAnswer(sessionId, answer_type);
-        setAnswer(result.answer);
-      });
-    }
-    catch (error) {
-      console.error('取得答案失敗：', error);
-    }
-  }
+  }  
   
   async function nextQuestion() {
     try {
@@ -308,10 +325,11 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
           </div>
         </header>
 
-        {isHost && gameState.answer(
-          <div className="quiz-answer-reveal">
-            <p>可接受答案：<strong>{gameState.answer.join(', ')}</strong></p>
-          </div>
+
+        {isHost && (
+          <section className="quiz-answer">
+            <p>可接受答案：<strong>{answer.join(', ')}</strong></p>
+          </section>
         )}
 
         <section className="quiz-hints-card" aria-labelledby="quiz-hints-title">          
@@ -439,11 +457,10 @@ async function requestSkipQuestion(sessionId, questionOrder) {
   return result;
 }
 
-async function requestAnswer(sessionId, answerType) {
+async function requestAnswer(sessionId) {
   const encodedSessionId = encodeURIComponent(sessionId);
   const result = await apiRequest(`/api/quiz-session/${encodedSessionId}/get-answer`, {
-    method: 'POST',
-    body: {answerType}
+    method: 'POST',    
   });
   return result;
 }

@@ -89,7 +89,40 @@ export async function checkAnswer(questionId, userAnswer) {
    }
 }
 
-export async function getAnswer(questionId, answerType) {   
+export async function getAnswer(sessionId) {   
+   const {data: session, error: sessionError} = await supabaseAdmin.from('quiz_sessions')
+      .select('answer_type')
+      .eq('id', sessionId)      
+      .maybeSingle();
+
+   if (!session) {
+      throw new Error('找不到遊戲');
+   }
+   
+   if (sessionError) {
+      throw sessionError;
+   }
+   
+   const answerType = session?.answer_type;
+   if (!answerType) {
+      throw new Error('找不到遊戲的 answer_type');
+   }
+
+   const {data: question, error: questionError} = await supabaseAdmin.from('quiz_session_questions')
+      .select('question_id')
+      .eq('session_id', sessionId)
+      .eq('status', 'active')
+      .maybeSingle();
+
+   if (questionError) {
+      throw questionError;
+   }
+
+   const questionId = question?.question_id;   
+   if (!questionId) {
+      throw new Error('找不到正在進行的題目');
+   }
+   
    if (answerType === 'character') {
       const {data: groundTruth, error:relationError} = await supabaseAdmin.from('character_question_answers')
       .select('character_id')
@@ -112,6 +145,7 @@ export async function getAnswer(questionId, answerType) {
       }
 
       return {
+         questionId: questionId,
          answer: [character.display_name, ...(character.aliases ?? [])]
       }
    }
@@ -136,6 +170,7 @@ export async function getAnswer(questionId, answerType) {
          throw animeError;
       }
       return {
+         questionId: questionId,
          answer: [anime.title, ...(anime.aliases ?? [])]
       }
    }
