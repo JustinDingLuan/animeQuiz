@@ -5,6 +5,7 @@ import { Link, useParams, useNavigate } from 'react-router-dom';
 import { apiRequest } from '../api/apiRequest.js';
 import { getQuizMode } from '../../shared_items/quizConfig.js';
 import LoadingDots from '../components/dotsAnimation.jsx';
+import PlayerAnswerOrder from '../components/PlayerAnswerOrder.jsx';
 
 // const quizModes = {
 //   five_hints_guess_character: {
@@ -72,6 +73,11 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
 
   const previousQuestionId = useRef(null);
 
+  // 給玩家回答用
+  const canAnswer = 
+  gameState.viewer === 'player' &&
+  gameState.viewer_id === gameState.current_player_id
+
   // 重新 render 畫面用，每兩秒都重新 render 畫面藉此同步所有人畫面
   useEffect(() => {
     const currentQuestion = gameState?.current_question;
@@ -129,16 +135,16 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
     };
   }, [isHost, questionId, sessionId]);
  
-  // if (!question) {
-  //   return (
-  //     <main className="quiz-page">
-  //       <section className="quiz-loading" aria-live="polite">
-  //         <span className="quiz-loading-spinner" aria-hidden="true" />
-  //         {/* <p role={loadError ? 'alert' : undefined}>{loadError || '正在準備題目……'}</p> */}
-  //       </section>
-  //     </main>
-  //   );
-  // }
+  if (!question) {
+    return (
+      <main className="quiz-page">
+        <section className="quiz-loading" aria-live="polite">
+          <span className="quiz-loading-spinner" aria-hidden="true" />
+          {/* <p role={loadError ? 'alert' : undefined}>{loadError || '正在準備題目……'}</p> */}
+        </section>
+      </main>
+    );
+  }
   
 
   function resetToEmptyState() {               
@@ -325,6 +331,7 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
           </div>
         </header>
 
+        <PlayerAnswerOrder players={gameState.players} />
 
         {isHost && (
           <section className="quiz-answer">

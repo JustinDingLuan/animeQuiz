@@ -1,5 +1,6 @@
 import { supabaseAdmin } from './databaseAdmin.js';
 import {getQuizMode} from '../shared_items/quizConfig.js';
+import { getRoomPlayers } from './roomPlayers.js';
 
 export async function getLobbyInfo(sessionId) {
    const { data, error:sessionError } = await supabaseAdmin
@@ -31,6 +32,7 @@ export async function getLobbyInfo(sessionId) {
    return {
       ...data,
       playerCount: count ?? 0,
+      players: await getRoomPlayers(sessionId),
    }
 }
 

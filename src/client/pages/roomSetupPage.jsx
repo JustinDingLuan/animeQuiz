@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase.js';
 import { apiRequest } from '../api/apiRequest.js';
 import GameSettingsForm from '../components/GameSettingsForm.jsx';
 import LoadingDots from '../components/dotsAnimation.jsx';
+import PlayerAnswerOrder from '../components/PlayerAnswerOrder.jsx';
 import '../styles/styles.css';
 import '../../auth.css';
 
@@ -251,6 +252,7 @@ function Lobby({sessionId, roomCode, myRole, nickname, players, onBack}) {
                   <p>你的角色：{myRole}</p>
                   <p>你的名稱：{nickname}</p>
                   <p>已加入玩家人數：{lobbyInfo?.playerCount}/{lobbyInfo?.room_capacity}</p>
+                  {lobbyInfo && <PlayerAnswerOrder players={lobbyInfo.players} />}
                   <p>等待其他玩家加入<LoadingDots /></p>
                   
                {myRole === 'host' && (                  

@@ -1,5 +1,6 @@
 import {supabaseAdmin} from './databaseAdmin.js';
 import {checkAnswer} from './quizAnswer.js';
+import { getRoomPlayers } from './roomPlayers.js';
 
 import { getQuizMode, getQuizModeKey } from '../shared_items/quizConfig.js';
 
@@ -48,11 +49,14 @@ export async function getQuizSessionState(sessionId) {
       throw new Error('找不到測驗 session');
    }
 
+   const players = await getRoomPlayers(sessionId);
+
    if (session.status === 'completed') {
       return {
          session_id: session.id,
          status: 'completed',
          question_count: session.question_count,
+         players,
          current_question: null,
          current_total_score: await getCurrentTotalScore(sessionId),
          game_over: true,
@@ -96,6 +100,7 @@ export async function getQuizSessionState(sessionId) {
       status: session.status,
       quiz_mode: quizMode,
       question_count: session.question_count,
+      players: players,
       current_total_score: await getCurrentTotalScore(sessionId),
       game_over: false,
       current_question: {
@@ -105,7 +110,8 @@ export async function getQuizSessionState(sessionId) {
          available_score: activeQuestion.score,
          is_correct: activeQuestion.is_correct,
          hints: currentShowedHints,
-      }
+      },
+      
    }
 }
 

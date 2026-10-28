@@ -99,6 +99,13 @@ router.get(
       }
 
       try {
+         const role = await getUserRole(sessionId, request.user.id);
+         if (!role) {
+            return response.status(403).json({
+               message: '只有該房間的成員可以查看玩家順序',
+            });
+         }
+
          const lobbyInfo = await getLobbyInfo(sessionId);
          return response.status(200).json(lobbyInfo);
       }
