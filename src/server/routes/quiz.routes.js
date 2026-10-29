@@ -6,12 +6,15 @@ import {
    revealNextHint,
    advance_to_next_question,
    getQuizResult,
-   getQuizSessionState
+   getQuizSessionState,
+   userSubmitAnswer,
+   markAsIncorrect
 } from '../quizSession.js';
 
 import {
    getAnswer
 } from '../quizAnswer.js';
+import { UNSAFE_RemixErrorBoundary } from 'react-router-dom';
 
 const router = Router();
 
@@ -284,6 +287,89 @@ router.get(
    }
 );
 
+router.post(
+   '/quiz-session/:sessionId/submit-answer',
+   requireAuth,
+   async (request, response) => {
+      const { sessionId } = request.params;
+      const { questionId, answerRound, userAnswer } = request.body;
+
+      if (!userAnswer) {
+         return response.status(400).json({
+         message: '缺少 userAnswer',
+         });
+      }
+
+      const userId = request.user.id;
+      const role = await getUserRole(sessionId, userId);
+      if (!role) {
+         return response.status(403).json({
+         message: '只有該房間的玩家可以進行此操作',
+         });
+      }
+
+      try {
+         const result = await userSubmitAnswer(sessionId, userId, questionId, userAnswer, answerRound);
+         return response.status(200).json(result);
+      }
+      catch (error) {
+         console.error(
+         '提交答案失敗：',
+         error
+         );
+
+         return response.status(500).json({
+         message: '提交答案失敗',
+         }); 
+      }
+   }
+);
+
+router.post(
+   '/quiz-session/:sessionId/mark-as-incorrect',
+   requireAuth,
+   async (request, response) => {
+      const { sessionId } = request.params;
+      const { questionId, attemptId } = request.body;
+
+      if (!questionId) {
+         return response.status(400).json({
+         message: '缺少 questionId',
+         });
+      }
+
+      const userId = request.user.id;
+      const role = await getUserRole(sessionId, userId);
+      if (!role || role !== 'host') {
+         return response.status(403).json({
+         message: '只有擁有權限的人可以進行此操作',
+         });
+      }
+      if (!attemptId) {
+         return response.status(400).json({
+         message: '缺少 attemptId',
+         });
+      }
+
+      try {
+         const result = await markAsIncorrect(sessionId, questionId, attemptId);
+         const state = await getQuizSessionState(sessionId);
+
+         return response.status(200).json({...state, viewer: role, viewer_id: userId, result: result});
+      }
+      catch (error) {
+         console.error(
+         '判斷答案為錯誤失敗：',
+         error
+         );
+
+         return response.status(500).json({
+         message: '判斷答案為錯誤失敗',
+         }); 
+      }
+   }
+);
+
 router.get(
    '/quiz-session/:sessionId/state',
    requireAuth,
@@ -306,7 +392,11 @@ router.get(
       
       try {
          const result = await getQuizSessionState(sessionId); 
-         return response.status(200).json({ ...result, viewer: role });
+         return response.status(200).json({ 
+            ...result, 
+            viewer: role,
+            viewer_id: userId
+         });
       }
       catch (error) {
          console.error(

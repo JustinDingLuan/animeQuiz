@@ -100,8 +100,15 @@ export async function startGame({sessionId, quizMode, questionCount}) {
    const shuffledQuestions = shuffle(questions);
    const selectedQuestions = shuffledQuestions.slice(0, normlalizedQuestionCount);
    
+   // 決定每題預設回答的玩家是誰
+   const players = await getRoomPlayers(sessionId);
+   const playerCount = players.length;
+
    const quizSessionRow = selectedQuestions.map((question, index) => {
       const isFirstQuestion = index === 0;
+      const startPlayer = players[index % playerCount]; // 從第一位玩家開始輪流分配
+
+
       return {
          session_id: sessionId,
          question_id: question.id,
@@ -111,6 +118,11 @@ export async function startGame({sessionId, quizMode, questionCount}) {
          score: 500,
          is_correct: null,
          user_answer: null,
+         
+         start_player_id: startPlayer.user_id,
+         current_player_id: startPlayer.user_id,
+         answer_round: 1,
+         phase: 'awaiting_answer'
       };
    });
 

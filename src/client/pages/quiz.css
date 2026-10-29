@@ -99,6 +99,19 @@
   color: var(--quiz-purple);
 }
 
+.quiz-turn-status {
+  margin-bottom: 20px;
+  padding: 16px 20px;
+  border: 1px solid var(--quiz-line);
+  border-radius: 16px;
+  background: var(--quiz-paper);
+  overflow-wrap: anywhere;
+}
+
+.quiz-turn-status p {
+  margin: 6px 0;
+}
+
 .quiz-hints-card,
 .quiz-answer-card {
   border: 1px solid rgba(255, 255, 255, 0.88);
