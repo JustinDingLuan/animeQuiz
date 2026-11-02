@@ -26,7 +26,7 @@ function shuffle(array) {
    return result;
 }
 
-export async function getQuizSessionState(sessionId) {
+export async function getQuizSessionState(sessionId, viewerId) {
    // 讀取 session -> 
    // 確認題目 status -> 
    // 找 status = active 的 quiz_session_questions -> 
@@ -106,6 +106,18 @@ export async function getQuizSessionState(sessionId) {
       throw pendingAnswerError;
    }
 
+   const {data: viewer, error: viewerError} = await supabaseAdmin
+      .from('quiz_session_members')
+      .select('user_id, nickname, join_at, answer_order')
+      .eq('session_id', sessionId)
+      .eq('user_id', viewerId)
+      .single();
+
+   if (viewerError) {
+      console.error('取得觀看者資訊失敗：', viewerError);
+      throw viewerError;
+   }
+
    return {
       session_id: session.id,
       status: session.status,
@@ -123,6 +135,7 @@ export async function getQuizSessionState(sessionId) {
          hints: currentShowedHints,
       },
       
+      viewer_name: viewer.nickname,
       start_player_id: activeQuestion.start_player_id,
       current_player_id: activeQuestion.current_player_id,
       answer_round: activeQuestion.answer_round,
@@ -354,15 +367,7 @@ export async function getQuizSessionState(sessionId) {
 export async function revealNextHint(sessionId) {
    const {data: sessionQuestions, error: sessionQuestionsError} = await supabaseAdmin
       .from('quiz_session_questions')
-      .select(`
-         session_id,
-         question_id,
-         question_order,
-         hints_revealed,
-         status,
-         score,
-         is_correct
-      `)
+      .select('*')
       .eq('session_id', sessionId)
       .eq('status', 'active')
       .single();
@@ -376,11 +381,16 @@ export async function revealNextHint(sessionId) {
       console.log('找不到進行中的題目');
       throw new Error('找不到進行中的題目');
    }
+
+   if (sessionQuestions.phase === 'awaiting_judgement') {
+      throw new Error('題目正在等待裁定，無法揭露提示');
+   }
    
    if (sessionQuestions.hints_revealed >= 5) {
       return {
          hint: null,
          hints_revealed: sessionQuestions.hints_revealed,
+         phase: 'awaiting_next_question',
          available_score: sessionQuestions.score,
          total_hints: 5,
          has_next_hint: false,
@@ -410,7 +420,10 @@ export async function revealNextHint(sessionId) {
    
    // 揭露提示後，可以拿到的總分變少  
    const updates = {
-      hints_revealed: nextHintOrder,      
+      hints_revealed: nextHintOrder,
+      phase: 'awaiting_answer',
+      current_player_id: sessionQuestions.start_player_id,
+      answer_round: sessionQuestions.answer_round + 1,
    };
    const newScore = Math.max(100, 600 - nextHintOrder * 100);
 
@@ -452,6 +465,7 @@ export async function revealNextHint(sessionId) {
          hint_text: nextHint.hint_text,
       },
       hints_revealed: nextHintOrder,
+      phase: 'awaiting_answer',
       available_score: newScore,
       has_next_hint: nextHintOrder < 5,
    }   
@@ -855,7 +869,7 @@ export async function userSubmitAnswer(session_id, user_id, question_id, answer,
    return insertAttempt;
 }
 
-export async function advance_to_next_question(session_id, user_id, expected_current_question_order, action) {
+export async function advanceToNextQuestion(session_id, user_id, expected_current_question_order, action) {
    // action: answered for next_question, skipped for skip_question
    const {data, error} = await supabaseAdmin.rpc('advance_question', {
       p_session_id: session_id,
@@ -1016,7 +1030,7 @@ export async function markAsIncorrect(session_id, question_id, attempt_id) {
       // 只暫停，不真的揭露提示或切題
       nextPhase = question.hints_revealed >= 5
          ? 'awaiting_next_question'
-         : 'awaiting_next_hint';
+         : 'awaiting_next_round';
    } 
    else {
       // 從目前玩家往後找，本輪尚未答錯的下一位
@@ -1083,4 +1097,9 @@ export async function markAsIncorrect(session_id, question_id, attempt_id) {
       phase: updatedQuestion.phase,
       answer_round: updatedQuestion.answer_round,
    };
+}
+
+
+export async function markAsCorrect(session_id, question_id, attempt_id) {
+
 }

@@ -8,6 +8,7 @@ import { canPlayerAnswer } from '../../shared_items/quizTurn.js';
 import LoadingDots from '../components/dotsAnimation.jsx';
 import PlayerAnswerOrder from '../components/PlayerAnswerOrder.jsx';
 
+
 // const quizModes = {
 //   five_hints_guess_character: {
 //     question_type: 'five_hints',
@@ -40,6 +41,8 @@ import PlayerAnswerOrder from '../components/PlayerAnswerOrder.jsx';
 export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameStateChange}) {
   const navigate = useNavigate();
   const isHost = gameState.viewer === 'host';
+  
+  
   // const [roomState, setRoomState] = useState(null);
   // const [loadError, setLoadError] = useState('');
   // const activeQuizMode = roomState?.quiz_mode ?? quizMode;
@@ -324,6 +327,24 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
     }
   }
 
+  async function markAsCorrect() {
+    const pendingAnswer = gameState.pending_answer;
+    if (!isHost || gameState.phase !== 'awaiting_judgement' || !pendingAnswer) {
+      console.log('無法判斷答案為正確，可能不是房主、或不是等待裁定的階段、或沒有待裁定的答案');
+      return;
+    }
+
+    try {
+      await quizAction('markAsCorrect', async () => {
+        const result = await requestMarkAsCorrect(sessionId, question.question_id, pendingAnswer.id);
+        onGameStateChange(result);
+      });
+    }
+    catch (error) {
+      console.error('判斷失敗：', error);
+    }
+  }
+
   let selectedMode = getQuizMode(quizMode);
   if (pendingAction === 'nextQuestion' || pendingAction === 'skipQuestion') {
     return (
@@ -365,6 +386,8 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
           </div>
         </header>
 
+        <p>你是: <strong>{gameState.viewer_name}</strong></p>
+
         <p>目前輪到: 
           <strong>{currentPlayer.nickname}</strong> 回答
         </p>
@@ -379,7 +402,21 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
           <p>等待房主裁定答案是否正確</p>
         )}
 
-        <PlayerAnswerOrder players={gameState.players} />
+        <div className="quiz-player-panels">
+          <PlayerAnswerOrder players={gameState.players} />
+
+          <aside className="quiz-ranking">
+            <h2>目前排名</h2>
+            <ol className="quiz-ranking-list">
+              {(gameState.rankings?? []).map((player) => (
+                <li key={player.user_id}>
+                  <span>{player.nickname}</span>
+                  <span>{player.total_score?? 0} 分</span>
+                </li>
+              ))}
+            </ol>
+          </aside>
+        </div>
 
         {isHost && (
           <section className="quiz-answer">
@@ -474,12 +511,23 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
 
           {isHost && (            
             <button 
-              className="quiz-button quiz-button-skip" 
+              className="quiz-button quiz-button-primary" 
               type="button" 
               onClick={markAsIncorrect}
               disabled={isBusy || gameState.phase !== 'awaiting_judgement'}              
             >
-              錯誤X
+              錯誤 X
+            </button>
+          )}
+
+          {isHost && (
+            <button 
+              className="quiz-button quiz-button-primary" 
+              type="button" 
+              onClick={markAsCorrect}
+              disabled={isBusy || gameState.phase !== 'awaiting_judgement'}              
+            >
+              正確 O
             </button>
           )}
         </div>
@@ -487,6 +535,7 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
     </main>
   );
 }
+
 
 async function requestNextHint(sessionId) {
   const encodedSessionId = encodeURIComponent(sessionId);
@@ -545,6 +594,15 @@ async function requestSubmitAnswer(sessionId, questionId, userAnswer, answerRoun
 async function requestMarkAsIncorrect(sessionId, questionId, attemptId) {
   const encodedSessionId = encodeURIComponent(sessionId);
   const result = await apiRequest(`/api/quiz-session/${encodedSessionId}/mark-as-incorrect`, {
+    method: 'POST',
+    body: {questionId: questionId, attemptId: attemptId}
+  });
+  return result;
+}
+
+async function requestMarkAsCorrect(sessionId, questionId, attemptId) {
+  const encodedSessionId = encodeURIComponent(sessionId);
+  const result = await apiRequest(`/api/quiz-session/${encodedSessionId}/mark-as-correct`, {
     method: 'POST',
     body: {questionId: questionId, attemptId: attemptId}
   });

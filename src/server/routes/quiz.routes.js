@@ -4,11 +4,12 @@ import { requireAuth, getUserRole } from '../auth.js';
 import {
    checkQuizAnswer,  
    revealNextHint,
-   advance_to_next_question,
+   advanceToNextQuestion,
    getQuizResult,
    getQuizSessionState,
    userSubmitAnswer,
-   markAsIncorrect
+   markAsIncorrect,
+   markAsCorrect
 } from '../quizSession.js';
 
 import {
@@ -154,7 +155,7 @@ router.post(
       try {
          const result = await revealNextHint(sessionId);
          const state = await getQuizSessionState(sessionId);
-         return response.status(200).json({...state, viewer: role});
+         return response.status(200).json({...state, viewer: role, viewer_id: userId, result: result});
       } 
       catch (error) {
          console.error(
@@ -192,9 +193,9 @@ router.post(
 
       try {
          const question_order = request.body.question_order || null; // 如果前端沒有傳 question_order，就設為 null
-         const result = await advance_to_next_question(sessionId, userId, question_order, 'answered'); 
+         const result = await advanceToNextQuestion(sessionId, userId, question_order, 'answered'); 
          const state = await getQuizSessionState(sessionId);
-         return response.status(200).json({...state, viewer: role});
+         return response.status(200).json({...state, viewer: role, viewer_id: userId, result: result});
       }
       catch (error) {
          console.error(
@@ -232,9 +233,9 @@ router.post(
 
       try {
          const question_order = request.body.question_order || null; // 如果前端沒有傳 question_order，就設為 null
-         const result = await advance_to_next_question(sessionId, userId, question_order, 'skipped');
+         const result = await advanceToNextQuestion(sessionId, userId, question_order, 'skipped');
          const state = await getQuizSessionState(sessionId);
-         return response.status(200).json({...state, viewer: role});
+         return response.status(200).json({...state, viewer: role, viewer_id: userId, result: result});
       }
       catch (error) {
          console.error(
@@ -269,10 +270,11 @@ router.get(
          message: '只有該房間的成員可以進行此操作',
          });
       }
+      const state = await getQuizSessionState(sessionId);
 
       try {
          const result = await getQuizResult(sessionId); 
-         return response.status(200).json(result);
+         return response.status(200).json({...state, viewer: role, viewer_id: userId, result: result});
       }
       catch (error) {
          console.error(
@@ -310,7 +312,8 @@ router.post(
 
       try {
          const result = await userSubmitAnswer(sessionId, userId, questionId, userAnswer, answerRound);
-         return response.status(200).json(result);
+         const state = await getQuizSessionState(sessionId);
+         return response.status(200).json({...state, viewer: role, viewer_id: userId, result: result});
       }
       catch (error) {
          console.error(
@@ -370,6 +373,51 @@ router.post(
    }
 );
 
+router.post(
+   '/quiz-session/:sessionId/mark-as-correct',
+   requireAuth,
+   async (request, response) => {
+      const { sessionId } = request.params;
+      const { questionId, attemptId } = request.body;
+
+      if (!questionId) {
+         return response.status(400).json({
+         message: '缺少 questionId',
+         });
+      }
+
+      const userId = request.user.id;
+      const role = await getUserRole(sessionId, userId);
+      if (!role || role !== 'host') {
+         return response.status(403).json({
+         message: '只有擁有權限的人可以進行此操作',
+         });
+      }
+      if (!attemptId) {
+         return response.status(400).json({
+         message: '缺少 attemptId',
+         });
+      }
+
+      try {
+         const result = await markAsCorrect(sessionId, questionId, attemptId);
+         const state = await getQuizSessionState(sessionId);
+
+         return response.status(200).json({...state, viewer: role, viewer_id: userId, result: result});
+      }
+      catch (error) {
+         console.error(
+         '判斷答案為正確失敗：',
+         error
+         );
+
+         return response.status(500).json({
+         message: '判斷答案為正確失敗',
+         }); 
+      }
+   }
+);
+
 router.get(
    '/quiz-session/:sessionId/state',
    requireAuth,
@@ -391,7 +439,7 @@ router.get(
       }
       
       try {
-         const result = await getQuizSessionState(sessionId); 
+         const result = await getQuizSessionState(sessionId, userId); 
          return response.status(200).json({ 
             ...result, 
             viewer: role,
