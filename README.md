@@ -126,5 +126,10 @@ server 只會用在 dev command 的時候
 
 ## 20261102
 未完成事項
-- markAsIncorrect 的內容
+- markAsCorrect 的內容
 - 獨立計分
+
+## 20261104
+目前欠缺內容：
+- 分數歸屬
+- 排行榜

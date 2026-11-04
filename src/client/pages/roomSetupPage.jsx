@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase.js';
 import { apiRequest } from '../api/apiRequest.js';
+import { useAction } from '../hooks/useAction.js';
 import GameSettingsForm from '../components/GameSettingsForm.jsx';
 import LoadingDots from '../components/dotsAnimation.jsx';
 import PlayerAnswerOrder from '../components/PlayerAnswerOrder.jsx';
@@ -118,9 +119,9 @@ function SelectGameMode({mode, players, onChange, onConfirm}) {
 
 }
 
-function RoomEntry({mode, nickname, roomCode, errorMessage, onnicknameChange, onRoomCodeChange, onCreate, onJoin, onBack}) {   
+function RoomEntry({mode, nickname, roomCode, errorMessage, onnicknameChange, onRoomCodeChange, onCreate, onJoin, onBack, isBusy}) {   
    const isCreate = mode === 'create';   
-
+   
    return (
       <>
          <main className="game-entry-main">
@@ -145,11 +146,11 @@ function RoomEntry({mode, nickname, roomCode, errorMessage, onnicknameChange, on
                      />
                   )}
                   
-                  <button className="setup-button" type="button" onClick={isCreate ? onCreate : onJoin}>
+                  <button className="setup-button" type="button" onClick={isCreate ? onCreate : onJoin} disabled={isBusy}>
                      {isCreate ? '創建房間' : '加入房間'}
                   </button>
                   
-                  <button className="setup-button" type="button" onClick={onBack}>
+                  <button className="setup-button" type="button" onClick={onBack} disabled={isBusy}>
                      返回主選單
                   </button>
 
@@ -274,6 +275,8 @@ export default function RoomSetupPage() {
    const [nickname, setnickname] = useState('');
    const [room, setRoom] = useState(null);
    const [errorMessage, setErrorMessage] = useState('');
+   
+   const {runAction, pendingAction, isBusy} = useAction();
 
    function handlePlayerCount() {
       setScreen('select-game-mode');
@@ -286,28 +289,30 @@ export default function RoomSetupPage() {
    async function handleCreateRoom(event) {
       event.preventDefault();
 
-      try {
-         const user_session = await ensureAuthSession();
-         // console.log('目前使用者 id:', user_session?.user?.id);
-         if (!user_session) {
-            throw new Error('無法取得使用者 session');
-         }
+      try {         
+         await runAction('createRoom', async () => {
+            const user_session = await ensureAuthSession();
+            // console.log('目前使用者 id:', user_session?.user?.id);
+            if (!user_session) {
+               throw new Error('無法取得使用者 session');
+            }
 
-         // api request 會自動加入 token
-         const result = await apiRequest('/api/create-room', {
-            method: 'POST',
-            headers: {
-               'Authorization': `Bearer ${user_session.access_token}`,
-            },
-            body: { nickname: nickname, roomCapacity: playerCount },
-         });
+            // api request 會自動加入 token
+            const result = await apiRequest('/api/create-room', {
+               method: 'POST',
+               headers: {
+                  'Authorization': `Bearer ${user_session.access_token}`,
+               },
+               body: { nickname: nickname, roomCapacity: playerCount },
+            });
 
-         setRoom({
-            sessionId: result.sessionId,
-            roomCode: result.roomCode,
-            myRole: result.role,
+            setRoom({
+               sessionId: result.sessionId,
+               roomCode: result.roomCode,
+               myRole: result.role,
+            });
+            setScreen('lobby');
          });
-         setScreen('lobby');
       }
       catch (error) {
          console.error('創建房間失敗：', error);
@@ -319,26 +324,28 @@ export default function RoomSetupPage() {
       event.preventDefault();
 
       try {
-         const user_session = await ensureAuthSession();
-         if (!user_session) {
-            throw new Error('無法取得使用者 session');
-         }
-         // console.log('目前使用者 id:', user_session?.user?.id);
+         await runAction('joinRoom', async () => {
+            const user_session = await ensureAuthSession();
+            if (!user_session) {
+               throw new Error('無法取得使用者 session');
+            }
+            // console.log('目前使用者 id:', user_session?.user?.id);
 
-         const result = await apiRequest('/api/join-room', {
-            method: 'POST',
-            headers: {
-               'Authorization': `Bearer ${user_session.access_token}`,
-            },
-            body: { roomCode: roomCode, nickname: nickname },
-         });
+            const result = await apiRequest('/api/join-room', {
+               method: 'POST',
+               headers: {
+                  'Authorization': `Bearer ${user_session.access_token}`,
+               },
+               body: { roomCode: roomCode, nickname: nickname },
+            });
 
-         setRoom({
-            sessionId: result.sessionId,
-            roomCode: result.roomCode,
-            myRole: result.role,
+            setRoom({
+               sessionId: result.sessionId,
+               roomCode: result.roomCode,
+               myRole: result.role,
+            });
+            setScreen('lobby');
          });
-         setScreen('lobby');
       }
       catch (error) {
          setErrorMessage(`${error.message}`);
@@ -390,6 +397,7 @@ export default function RoomSetupPage() {
                onCreate={handleCreateRoom} 
                onJoin={handleJoinRoom} 
                onBack={() => setScreen('menu')} 
+               isBusy={isBusy}
             />)
          }
 

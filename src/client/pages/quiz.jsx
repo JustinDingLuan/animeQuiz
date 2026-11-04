@@ -5,6 +5,7 @@ import { Link, useParams, useNavigate } from 'react-router-dom';
 import { apiRequest } from '../api/apiRequest.js';
 import { getQuizMode } from '../../shared_items/quizConfig.js';
 import { canPlayerAnswer } from '../../shared_items/quizTurn.js';
+import { useAction } from '../hooks/useAction.js';
 import LoadingDots from '../components/dotsAnimation.jsx';
 import PlayerAnswerOrder from '../components/PlayerAnswerOrder.jsx';
 
@@ -40,8 +41,7 @@ import PlayerAnswerOrder from '../components/PlayerAnswerOrder.jsx';
 
 export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameStateChange}) {
   const navigate = useNavigate();
-  const isHost = gameState.viewer === 'host';
-  
+  const isHost = gameState.viewer === 'host';  
   
   // const [roomState, setRoomState] = useState(null);
   // const [loadError, setLoadError] = useState('');
@@ -57,10 +57,12 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
 
   // const submittingRef = useRef(false);
   // const [isSubmitting, setIsSubmitting] = useState(false);
+
   // 控制所有按鈕
-  const actionLock = useRef(false);
-  const [pendingAction, setPendingAction] = useState(null);
-  const isBusy = pendingAction !== null;
+  // const actionLock = useRef(false);
+  // const [pendingAction, setPendingAction] = useState(null);
+  // const isBusy = pendingAction !== null;
+  const { runAction: quizAction, pendingAction, isBusy } = useAction();
   
   const [isCorrect, setIsCorrect] = useState(false);
   const [currentScore, setCurrentScore] = useState(0);
@@ -155,23 +157,23 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
   //   setResultMessage('');
   // }
 
-  async function quizAction(actionName, actionFunction) {
-    if (actionLock.current) {
-      return;
-    }
+  // async function quizAction(actionName, actionFunction) {
+  //   if (actionLock.current) {
+  //     return;
+  //   }
 
-    // 先搶到的動作會先執行，然後把門鎖起來
-    actionLock.current = actionName;
-    setPendingAction(actionName);
-    // 最後再把門鎖打開，讓下一個動作可以執行
-    try {
-      await actionFunction();
-    }
-    finally {
-      actionLock.current = false;
-      setPendingAction(null);
-    }
-  }
+  //   // 先搶到的動作會先執行，然後把門鎖起來
+  //   actionLock.current = actionName;
+  //   setPendingAction(actionName);
+  //   // 最後再把門鎖打開，讓下一個動作可以執行
+  //   try {
+  //     await actionFunction();
+  //   }
+  //   finally {
+  //     actionLock.current = false;
+  //     setPendingAction(null);
+  //   }
+  // }
 
   async function showNextHint() {
     try {
@@ -217,8 +219,8 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
         await quizAction('submitQuizAnswer', async () => {
           const result = await requestSubmitAnswer(sessionId, question.question_id, normalizedUserAnswer, gameState.answer_round);        
           console.log(`等待主持人確認答案是否正確...`);
-          setUserAnswer('');
           onGameStateChange(result);
+          setUserAnswer('');
           // if (result.is_correct) {
           //   setIsCorrect(true);
           //   setResultMessage(`回答正確！獲得 ${result.score} 分`);
@@ -242,8 +244,7 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
         const result = await requestNextQuestion(sessionId, question.question_order);
 
         if (result.game_over) {
-          setHasNextQuestion(false);
-          console.log('已經沒有下一題了');
+          setHasNextQuestion(false);          
           // const encodedSessionId = encodeURIComponent(sessionId);
           // window.location.assign(`/gameResult.html?sessionId=${encodedSessionId}`);
 
@@ -259,6 +260,7 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
         // setHints(result.current_question.hints ? [result.current_question.hints] : []);
         // setHasNextHint(true);
         onGameStateChange(result);
+        setResultMessage('');
       }); 
     }
     catch (error) {
@@ -287,6 +289,7 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
         // setQuestion(result.current_question);
         // setHints(result.current_question.hints ? [result.current_question.hints] : []);      
         onGameStateChange(result);
+        setResultMessage(`已跳過題目，輪到下一位玩家回答`);
       });
     }
     catch (error) {
@@ -296,8 +299,13 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
 
   async function markAsIncorrect() {
     const pendingAnswer = gameState.pending_answer;
-    if (!isHost || gameState.phase !== 'awaiting_judgement' || !pendingAnswer) {
-      console.log('無法判斷答案為錯誤，可能不是房主、或不是等待裁定的階段、或沒有待裁定的答案');
+    if (gameState.phase !== 'awaiting_judgement') {
+      console.error('非等待裁定階段');
+      return;
+    }
+
+    if (!pendingAnswer) {
+      console.error('沒有待裁定的答案');
       return;
     }
 
@@ -305,6 +313,7 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
       await quizAction('markAsIncorrect', async () => {
         const result = await requestMarkAsIncorrect(sessionId, question.question_id, pendingAnswer.id);
         onGameStateChange(result);
+        setResultMessage(`回答錯誤! 輪到下一位玩家回答`);
         // if (result.game_over) {
         //   setHasNextQuestion(false);
         //   console.log('已經沒有下一題了');
@@ -329,8 +338,13 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
 
   async function markAsCorrect() {
     const pendingAnswer = gameState.pending_answer;
-    if (!isHost || gameState.phase !== 'awaiting_judgement' || !pendingAnswer) {
-      console.log('無法判斷答案為正確，可能不是房主、或不是等待裁定的階段、或沒有待裁定的答案');
+    if (gameState.phase !== 'awaiting_judgement') {
+      console.error('非等待裁定階段');
+      return;
+    }
+
+    if (!pendingAnswer) {
+      console.error('沒有待裁定的答案');
       return;
     }
 
@@ -338,6 +352,7 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
       await quizAction('markAsCorrect', async () => {
         const result = await requestMarkAsCorrect(sessionId, question.question_id, pendingAnswer.id);
         onGameStateChange(result);
+        setResultMessage(`回答正確！獲得 ${result.current_question.available_score} 分`);
       });
     }
     catch (error) {
@@ -408,10 +423,9 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
           <aside className="quiz-ranking">
             <h2>目前排名</h2>
             <ol className="quiz-ranking-list">
-              {(gameState.rankings?? []).map((player) => (
+              {(gameState.score_ranking?? []).map((player) => (
                 <li key={player.user_id}>
-                  <span>{player.nickname}</span>
-                  <span>{player.total_score?? 0} 分</span>
+                  <span>{player.nickname}: {player.total_score?? 0} 分</span>                  
                 </li>
               ))}
             </ol>

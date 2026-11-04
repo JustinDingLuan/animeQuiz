@@ -26,6 +26,47 @@ function shuffle(array) {
    return result;
 }
 
+async function getPlayerRanking(sessionId, players) {
+   const {data: attempts, error: attemptsError} = await supabaseAdmin
+      .from('quiz_user_attempt')
+      .select('score, scorer')
+      .eq('session_id', sessionId)
+      .eq('status', 'correct');
+
+   if (attemptsError) {
+      console.error('取得玩家嘗試記錄失敗：', attemptsError);
+      throw attemptsError;
+   }
+
+   // 計算每個玩家的總分
+   const scoreByPlayer = new Map();
+   for (const attempt of attempts) {
+      if (!attempt.scorer) continue;
+      
+      const currentScore = scoreByPlayer.get(attempt.scorer) || 0;
+      scoreByPlayer.set(attempt.scorer, currentScore + attempt.score);
+   }
+   
+   const ranking = players.map(player => ({
+      ...player,
+      total_score: scoreByPlayer.get(player.user_id) || 0
+   })).sort((a, b) => b.total_score - a.total_score);
+
+   let currentRank = 0
+
+
+   return ranking.map((player, index) => {
+      if (index === 0 || player.total_score < ranking[index - 1].total_score) {
+         currentRank = index + 1;
+      }
+
+      return {
+         ...player,
+         rank: currentRank
+      }
+   });
+}
+
 export async function getQuizSessionState(sessionId, viewerId) {
    // 讀取 session -> 
    // 確認題目 status -> 
@@ -118,6 +159,8 @@ export async function getQuizSessionState(sessionId, viewerId) {
       throw viewerError;
    }
 
+   const ranking = await getPlayerRanking(sessionId, players);
+
    return {
       session_id: session.id,
       status: session.status,
@@ -142,6 +185,7 @@ export async function getQuizSessionState(sessionId, viewerId) {
       phase: activeQuestion.phase,
 
       pending_answer: pendingAnswer,
+      score_ranking: ranking
    }
 }
 
@@ -884,42 +928,10 @@ export async function advanceToNextQuestion(session_id, user_id, expected_curren
       console.error('前進下一題失敗：', error);
       throw error;
    }
-
-   // const state = await getQuizSessionState(session_id); 
-
-
-
    return data;
 }
 
-export async function getQuizResult(session_id) {
-   // 這裡不用 .single 因為就是要取得一個 session 裡面的多筆資料
-   const {data: sessionQuestions, error: sessionQuestionsError} = await supabaseAdmin
-      .from('quiz_session_questions')
-      .select(`
-         question_id,
-         question_order,
-         hints_revealed,
-         status,
-         score,
-         is_correct
-      `)
-      .eq('session_id', session_id)
-      // 每個 row 是會被覆寫的，所以不用確定狀態已經是 answered 才計算分數
-
-   if (sessionQuestionsError) {
-      console.error('取得題目紀錄失敗：', sessionQuestionsError);
-      throw sessionQuestionsError;
-   }
-
-   const totalScore = sessionQuestions.reduce((sum, item) => sum + (item.is_correct ? item.score : 0), 0);
-
-   return {
-      current_total_score: totalScore,
-   };
-}
-
-// 測試用，給房主判斷答案為錯誤
+// 房主判斷答案為錯誤
 export async function markAsIncorrect(session_id, question_id, attempt_id) {
    const fail = (message, status = 409) =>
       Object.assign(new Error(message), { status });
@@ -931,36 +943,34 @@ export async function markAsIncorrect(session_id, question_id, attempt_id) {
       .eq('id', session_id)
       .maybeSingle();
 
-   if (sessionError) throw sessionError;
-   if (!session) throw fail('找不到房間', 404);
-   if (session.status !== 'in_progress') {
+   if (sessionError) 
+      throw sessionError;
+   if (!session) 
+      throw fail('找不到房間', 404);
+   if (session.status !== 'in_progress') 
       throw fail('遊戲目前不在進行中');
-   }
 
    // 2. 查詢題目目前的狀態
    const { data: question, error: questionError } = await supabaseAdmin
       .from('quiz_session_questions')
-      .select(`
-         question_id,
-         status,
-         phase,
-         start_player_id,
-         current_player_id,
-         answer_round,
-         hints_revealed
-      `)
+      .select('*')
       .eq('session_id', session_id)
       .eq('question_id', question_id)
       .maybeSingle();
 
-   if (questionError) throw questionError;
-   if (!question) throw fail('找不到題目', 404);
+   if (questionError) {
+      throw questionError;
+   }
+   if (!question) {
+      throw fail('找不到題目', 404);
+   }
    if (question.status !== 'active') {
       throw fail('這不是目前進行中的題目');
    }
    if (question.phase !== 'awaiting_judgement') {
       throw fail('目前沒有等待裁定的答案');
    }
+   
 
    // 3. 取得固定玩家順序
    const players = await getRoomPlayers(session_id);
@@ -980,12 +990,14 @@ export async function markAsIncorrect(session_id, question_id, attempt_id) {
    // 4. 查詢本題、本輪的全部作答紀錄
    const { data: attempts, error: attemptsError } = await supabaseAdmin
       .from('quiz_user_attempt')
-      .select('id, user_id, status')
+      .select('*')
       .eq('session_id', session_id)
       .eq('question_id', question_id)
       .eq('answer_round', question.answer_round);
 
-   if (attemptsError) throw attemptsError;
+   if (attemptsError) {
+      throw attemptsError;
+   }
 
    // attemptId 必須屬於這個房間、題目與輪次
    const attempt = attempts.find(
@@ -993,13 +1005,17 @@ export async function markAsIncorrect(session_id, question_id, attempt_id) {
    );
 
    if (!attempt) {
-      throw fail('找不到這個回合的作答紀錄', 404);
+      throw new Error('找不到這個回合的作答紀錄', 404);
    }
    if (attempt.status !== 'pending') {
-      throw fail('這筆答案已經裁定過了');
+      throw new Error('狀態不符合預期');
    }
    if (attempt.user_id !== question.current_player_id) {
-      throw fail('這筆答案不屬於目前回答者');
+      throw new Error('作答者不符合預期');
+   }
+   if (attempt.answer_round !== question.answer_round) {
+      console.log(`attempt.answer_round: ${attempt.answer_round}, question.answer_round: ${question.answer_round}`);
+      throw new Error('回答輪次不符合預期');
    }
 
    const pendingAttempts = attempts.filter(
@@ -1007,7 +1023,7 @@ export async function markAsIncorrect(session_id, question_id, attempt_id) {
    );
 
    if (pendingAttempts.length !== 1) {
-      throw fail('本輪有多筆待裁定答案，請先檢查資料');
+      throw new Error('本輪有多筆待裁定答案');
    }
 
    // 5. 計算「此次也判錯後」是否全員失敗
@@ -1064,7 +1080,9 @@ export async function markAsIncorrect(session_id, question_id, attempt_id) {
       .select()
       .maybeSingle();
 
-   if (updateAttemptError) throw updateAttemptError;
+   if (updateAttemptError) {
+      throw updateAttemptError;
+   }
    if (!updatedAttempt) {
       throw fail('答案狀態已更新，不能重複裁定');
    }
@@ -1085,21 +1103,150 @@ export async function markAsIncorrect(session_id, question_id, attempt_id) {
       .select('question_id, current_player_id, phase, answer_round')
       .maybeSingle();
 
-   if (updateQuestionError) throw updateQuestionError;
+   if (updateQuestionError) {
+      throw updateQuestionError;
+   }
    if (!updatedQuestion) {
       throw fail('題目狀態已更新，無法移交回答權');
    }
 
-   return {
-      attempt: updatedAttempt,
-      all_incorrect: allIncorrect,
-      current_player_id: updatedQuestion.current_player_id,
-      phase: updatedQuestion.phase,
-      answer_round: updatedQuestion.answer_round,
-   };
+   // return {
+   //    attempt: updatedAttempt,
+   //    all_incorrect: allIncorrect,
+   //    current_player_id: updatedQuestion.current_player_id,
+   //    phase: updatedQuestion.phase,
+   //    answer_round: updatedQuestion.answer_round,
+   // };
 }
 
 
 export async function markAsCorrect(session_id, question_id, attempt_id) {
+   const {data: session, error: sessionError} = await supabaseAdmin
+      .from('quiz_sessions')
+      .select('id, status')
+      .eq('id', session_id)
+      .maybeSingle();
 
+   if (sessionError) {
+      throw sessionError;
+   }
+   if (!session) {
+      throw new Error('找不到房間');
+   }
+   if (session.status !== 'in_progress') {
+      throw new Error('遊戲目前不在進行中');
+   }
+
+   // 1. 檢查題目狀態
+   const {data: question, error: questionError} = await supabaseAdmin
+      .from('quiz_session_questions')
+      .select('*')
+      .eq('session_id', session_id)
+      .eq('question_id', question_id)
+      .maybeSingle();
+
+   if (questionError) {
+      throw questionError;
+   }
+   if (!question) {
+      throw new Error('找不到題目');
+   }
+
+   if (question.status !== 'active') {
+      throw new Error('題目不在進行中');
+   }
+   if (question.phase !== 'awaiting_judgement') {
+      throw new Error('題目不在等待裁定階段');
+   }
+
+   // 2.更新 user attempt
+   // 先找到當下的 user 回答
+   const {data: currentAttempt, error: currentAttemptError} = await supabaseAdmin
+      .from('quiz_user_attempt')
+      .select('*')
+      .eq('id', attempt_id)
+      .eq('session_id', session_id)
+      .eq('question_id', question_id)
+      .maybeSingle();
+   
+   if (currentAttemptError) {
+      throw currentAttemptError;
+   }
+   if (!currentAttempt) {
+      throw new Error('找不到回答');
+   }
+   if (currentAttempt.status !== 'pending') {
+      throw new Error('狀態不符合預期');
+   }
+   if (currentAttempt.answer_round !== question.answer_round) {
+      throw new Error('回答輪次不符合預期');
+   }
+   if (currentAttempt.user_id !== question.current_player_id) {
+      throw new Error('作答者不符合預期');
+   }
+
+   // 更新狀態
+   const {data: updatedAttempt, error: updateAttemptError} = await supabaseAdmin
+      .from('quiz_user_attempt')
+      .update({
+         status: 'correct',
+         score: question.score,
+         scorer: currentAttempt.user_id,
+      })
+      .eq('id', attempt_id)
+      .eq('session_id', session_id)
+      .eq('question_id', question_id)
+      .eq('status', 'pending')
+      .eq('user_id', question.current_player_id)
+      .eq('answer_round', question.answer_round)
+      .select()      
+      .single();
+
+   if (updateAttemptError) {
+      throw updateAttemptError;
+   }
+   if (!updatedAttempt) {
+      throw new Error('找不到更新後的回答');
+   }
+
+   // 3. 更新題目狀態: 狀態-以回答, 階段-等待下一題
+   const {data: updatedQuestion, error: updateQuestionError} = await supabaseAdmin
+      .from('quiz_session_questions')
+      .update({         
+         is_correct: true,
+         phase: 'awaiting_next_question',
+      })
+      .eq('session_id', session_id)
+      .eq('question_id', question_id)
+      .eq('status', 'active')
+      .eq('phase', 'awaiting_judgement')
+      .eq('current_player_id', currentAttempt.user_id)
+      .eq('answer_round', question.answer_round)
+      .select()
+      .single();
+   
+   if (updateQuestionError) {
+      throw updateQuestionError;
+   }
+   if (!updatedQuestion) {
+      throw new Error('找不到更新後的題目');
+   }
+
+   // return {
+   //    attempt: updatedAttempt,
+   //    all_incorrect: allIncorrect,
+   //    current_player_id: updatedQuestion.current_player_id,
+   //    phase: updatedQuestion.phase,
+   //    answer_round: updatedQuestion.answer_round,
+   // };
+}
+
+export async function getQuizResult(session_id) {
+   // 這裡不用 .single 因為就是要取得一個 session 裡面的多筆資料
+   const players = await getRoomPlayers(session_id);
+   const ranking = await getPlayerRanking(session_id, players);
+
+   return {
+      score_ranking: ranking,
+   };
 }

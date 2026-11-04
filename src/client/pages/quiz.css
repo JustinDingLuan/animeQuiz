@@ -496,7 +496,7 @@
 
 .quiz-ranking li {
   display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
   overflow-wrap: anywhere;

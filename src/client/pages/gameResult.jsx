@@ -4,23 +4,18 @@ import { apiRequest } from '../api/apiRequest.js';
 import '../styles/styles.css';
 
 export default function GameResult() {
-  // const params = new URLSearchParams(
-  //   window.location.search
-  // );
-  // const sessionId = params.get('sessionId');
-  const { sessionId } = useParams();
-  // 變數、操作變數用的 function
-  const [resultState, setResultState] = useState({
+  const { sessionId } = useParams();  
+  const { result, setResult} = useState({
     status: 'loading',
-    score: 0,
+    score_ranking: [],
     message: '',
   });
 
   useEffect(() => {
     if (!sessionId) {
-      setResultState({
+      setResult({
         status: 'error',
-        score: 0,
+        score_ranking: [],
         message: '找不到這場遊戲的紀錄。',
       });
       return undefined;
@@ -31,15 +26,14 @@ export default function GameResult() {
     async function loadGameResult() {
       try {
         const encodedSessionId = encodeURIComponent(sessionId);
-        const result = await apiRequest(`/api/quiz-session/${encodedSessionId}/result`, {
+        const ranking = await apiRequest(`/api/quiz-session/${encodedSessionId}/result`, {
           method: 'GET',
           signal: controller.signal,
         });
         
-
-        setResultState({
+        setResult({
           status: 'success',
-          score: result.current_total_score,
+          score_ranking: ranking,
           message: '',
         });
       } 
@@ -49,9 +43,9 @@ export default function GameResult() {
         }
 
         console.error('取得遊戲結果失敗：', error);
-        setResultState({
+        setResult({
           status: 'error',
-          score: 0,
+          score_ranking:[],
           message: error.message,
         });
       }
@@ -68,7 +62,7 @@ export default function GameResult() {
         className="result-card"
         aria-live="polite"
       >
-        {resultState.status === 'loading' && (
+        {result.status === 'loading' && (
           <>
             <div
               className="result-loader"
@@ -82,7 +76,7 @@ export default function GameResult() {
           </>
         )}
 
-        {resultState.status === 'error' && (
+        {result.status === 'error' && (
           <>
             <div className="result-icon error" aria-hidden="true">
               !
@@ -90,7 +84,7 @@ export default function GameResult() {
             <p className="result-eyebrow">讀取失敗</p>
             <h1>無法顯示結算結果</h1>
             <p className="result-description">
-              {resultState.message}
+              {result.message}
             </p>
             <Link to="/" className="result-secondary-action">
               返回房間設定
@@ -98,20 +92,22 @@ export default function GameResult() {
           </>
         )}
 
-        {resultState.status === 'success' && (
+        {result.status === 'success' && (
           <>
-            <div className="result-icon" aria-hidden="true">
+            {/* <div className="result-icon" aria-hidden="true">
               ✓
-            </div>
+            </div> */}
             <p className="result-eyebrow">遊戲完成</p>
-            <h1>漂亮收尾！</h1>
-            <p className="result-description">
-              這場 Anime Quiz 的最終得分是
-            </p>
-
+            <h1>最終結果</h1>
+            
             <div className="score-display">
-              <strong>{resultState.score}</strong>
-              <span>分</span>
+              <ol>
+                {(result.score_ranking ?? []).map((player) => (
+                  <li key={player.user_id}>
+                    <span>{player.nickname}: {player.total_score ?? 0} 分</span>
+                  </li>
+                ))}
+              </ol>
             </div>
 
             <Link to="/" className="result-primary-action">
