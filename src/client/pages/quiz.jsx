@@ -65,7 +65,7 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
   const { runAction: quizAction, pendingAction, isBusy } = useAction();
   
   const [isCorrect, setIsCorrect] = useState(false);
-  const [currentScore, setCurrentScore] = useState(0);
+  // const [currentScore, setCurrentScore] = useState(0);
   // 
   const [hints, setHints] = useState(firstQuestion?.hints ?? []);
   const [userAnswer, setUserAnswer] = useState('');
@@ -95,7 +95,7 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
     setVisibleHintCount(currentQuestion.hints_revealed);
     setHints(currentQuestion.hints ?? []);
     setHasNextHint(currentQuestion.hints_revealed < 5);
-    setCurrentScore(gameState.current_total_score ?? 0);
+    // setCurrentScore(gameState.current_total_score ?? 0);
     setHasNextQuestion(gameState.question_count > 0);
     setIsCorrect(currentQuestion.is_correct === true);
 
@@ -397,7 +397,7 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
               <span aria-hidden="true"> / </span>
               共 {questionCount} 題
             </p>
-            <p className="quiz-score">目前總分 <strong>{currentScore}</strong></p>
+            {/* <p className="quiz-score">目前總分 <strong>{currentScore}</strong></p> */}
           </div>
         </header>
 
@@ -422,10 +422,12 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
 
           <aside className="quiz-ranking">
             <h2>目前排名</h2>
-            <ol className="quiz-ranking-list">
+            <ol className="player-ranking-list">
               {(gameState.score_ranking?? []).map((player) => (
                 <li key={player.user_id}>
-                  <span>{player.nickname}: {player.total_score?? 0} 分</span>                  
+                  <span className="ranking-position">{player.rank}</span>
+                  <span className="ranking-name">{player.nickname}</span>
+                  <span className="ranking-score">{player.total_score?? 0} 分</span>
                 </li>
               ))}
             </ol>
@@ -436,9 +438,7 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
           <section className="quiz-answer">
             <p>可接受答案：<strong>{answer.join(', ')}</strong></p>
           </section>
-        )}
-
-        
+        )}        
 
         <section className="quiz-hints-card" aria-labelledby="quiz-hints-title">          
           <div className="quiz-section-heading">
@@ -503,26 +503,17 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
         </p>
         
         <div className="quiz-footer-action">
-          {isCorrect ? (
-            <button
-              className="quiz-button quiz-button-primary"
-              type="button"
-              onClick={nextQuestion}
-              disabled={isBusy || !hasNextQuestion || !isHost}
+          {isHost && (
+            <button 
+            className="quiz-button quiz-button-primary" 
+            type="button" 
+            onClick={markAsCorrect}
+            disabled={isBusy || gameState.phase !== 'awaiting_judgement'}              
             >
-              下一題
-            </button>
-          ) : (
-            <button
-              className="quiz-button quiz-button-skip"
-              type="button"
-              onClick={skipQuestion}
-              disabled={isBusy || !hasNextQuestion || !isHost}
-            >
-              跳過此題（本題 0 分）
+              正確 O
             </button>
           )}
-
+          
           {isHost && (            
             <button 
               className="quiz-button quiz-button-primary" 
@@ -533,18 +524,31 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
               錯誤 X
             </button>
           )}
-
-          {isHost && (
-            <button 
-              className="quiz-button quiz-button-primary" 
-              type="button" 
-              onClick={markAsCorrect}
-              disabled={isBusy || gameState.phase !== 'awaiting_judgement'}              
-            >
-              正確 O
-            </button>
-          )}
         </div>
+
+        {isHost && (
+          <div className="quiz-footer-action">
+            {isCorrect ? (
+              <button
+                className="quiz-button quiz-button-primary"
+                type="button"
+                onClick={nextQuestion}
+                disabled={isBusy || !hasNextQuestion}                
+              >
+                下一題
+              </button>
+            ) : (
+              <button
+                className="quiz-button quiz-button-skip"
+                type="button"
+                onClick={skipQuestion}
+                disabled={isBusy || !hasNextQuestion}                
+              >
+                跳過此題（本題 0 分）
+              </button>
+            )}          
+          </div>
+        )}        
       </section>
     </main>
   );

@@ -3,9 +3,9 @@ import { Link, useParams } from 'react-router-dom';
 import { apiRequest } from '../api/apiRequest.js';
 import '../styles/styles.css';
 
-export default function GameResult() {
+export default function GameResultPage() {
   const { sessionId } = useParams();  
-  const { result, setResult} = useState({
+  const [result, setResult] = useState({
     status: 'loading',
     score_ranking: [],
     message: '',
@@ -26,10 +26,11 @@ export default function GameResult() {
     async function loadGameResult() {
       try {
         const encodedSessionId = encodeURIComponent(sessionId);
-        const ranking = await apiRequest(`/api/quiz-session/${encodedSessionId}/result`, {
+        const result = await apiRequest(`/api/quiz-session/${encodedSessionId}/result`, {
           method: 'GET',
           signal: controller.signal,
         });
+        const ranking = result.ranking
         
         setResult({
           status: 'success',
@@ -45,7 +46,7 @@ export default function GameResult() {
         console.error('取得遊戲結果失敗：', error);
         setResult({
           status: 'error',
-          score_ranking:[],
+          score_ranking: [],
           message: error.message,
         });
       }
@@ -101,10 +102,12 @@ export default function GameResult() {
             <h1>最終結果</h1>
             
             <div className="score-display">
-              <ol>
-                {(result.score_ranking ?? []).map((player) => (
+              <ol className="player-ranking-list">
+                {result.score_ranking.map((player) => (
                   <li key={player.user_id}>
-                    <span>{player.nickname}: {player.total_score ?? 0} 分</span>
+                    <span className="ranking-position">{player.rank}</span>
+                    <span className="ranking-name">{player.nickname}</span>
+                    <span className="ranking-score">{player.total_score ?? 0} 分</span>
                   </li>
                 ))}
               </ol>

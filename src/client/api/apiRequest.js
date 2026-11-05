@@ -4,6 +4,7 @@ export async function apiRequest(url, options={}) {
    const requestOptions = {
       method: options.method,
       headers: { ...options.headers },
+      signal: options.signal,
    };
 
    // 取得目前使用者的 session

@@ -513,3 +513,50 @@ h1 {
   color: #8d8797;
   background: #f3f1f6;
 }
+
+/* 排行榜整體 */
+.player-ranking-list {
+  display: grid;
+  gap: 12px;
+
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 每位玩家的一列 */
+.player-ranking-list > li {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 12px;
+
+  padding: 12px;
+  border-radius: 12px;
+  background: #f6f3ff;
+}
+
+/* 第一欄：排名 */
+.player-ranking-list .ranking-position {
+  text-align: center;
+  font-size: 18px;
+  font-weight: 700;
+  color: #6d4aff;
+}
+
+/* 第二欄：玩家名稱 */
+.player-ranking-list .ranking-name {
+  min-width: 0;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+/* 第三欄：分數 */
+.player-ranking-list .ranking-score {
+  white-space: nowrap;
+  text-align: right;
+  font-size: 16px;
+  font-weight: 700;
+  color: #6d4aff;
+  font-variant-numeric: tabular-nums;
+}

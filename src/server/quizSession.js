@@ -1246,7 +1246,5 @@ export async function getQuizResult(session_id) {
    const players = await getRoomPlayers(session_id);
    const ranking = await getPlayerRanking(session_id, players);
 
-   return {
-      score_ranking: ranking,
-   };
+   return ranking;
 }

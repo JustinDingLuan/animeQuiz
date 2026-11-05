@@ -9,13 +9,13 @@ import {
    userSubmitAnswer,
    markAsIncorrect,
    markAsCorrect,
-   getGameResult,
+   getQuizResult,
 } from '../quizSession.js';
 
 import {
    getAnswer
 } from '../quizAnswer.js';
-import { UNSAFE_RemixErrorBoundary } from 'react-router-dom';
+
 
 const router = Router();
 
@@ -478,11 +478,10 @@ router.get(
          message: '只有該房間的成員可以進行此操作',
          });
       }
-      const state = await getQuizSessionState(sessionId, userId);
-
-      try {
-         const result = await getGameResult(sessionId); 
-         return response.status(200).json({...state, viewer: role, viewer_id: userId, result: result});
+      
+      try {         
+         const ranking = await getQuizResult(sessionId); 
+         return response.status(200).json({ranking: ranking, viewer: role, viewer_id: userId});
       }
       catch (error) {
          console.error(

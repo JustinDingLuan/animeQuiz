@@ -481,30 +481,6 @@
   background: var(--quiz-paper);
 }
 
-.quiz-ranking h2 {
-  margin: 0 0 12px;
-  font-size: 18px;
-}
-
-.quiz-ranking ol {
-  display: grid;
-  gap: 10px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.quiz-ranking li {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px;
-  overflow-wrap: anywhere;
-}
-
-.quiz-ranking strong {
-  color: var(--quiz-purple);
-}
 
 @media (max-width: 640px) {
   .quiz-player-panels {
