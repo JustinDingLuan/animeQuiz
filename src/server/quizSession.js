@@ -1,6 +1,6 @@
-import {supabaseAdmin} from './databaseAdmin.js';
-import {checkAnswer} from './quizAnswer.js';
-import { getRoomPlayers } from './roomPlayers.js';
+import { supabaseAdmin } from './databaseAdmin.js';
+import { checkAnswer, getAnswer} from './quizAnswer.js';
+import { getRoomPlayers, getParticipant } from './roomPlayers.js';
 import { getQuizMode, getQuizModeKey } from '../shared_items/quizConfig.js';
 
 // const quizModes = {
@@ -89,7 +89,7 @@ export async function getQuizSessionState(sessionId, viewerId) {
       throw new Error('找不到測驗 session');
    }
 
-   const players = await getRoomPlayers(sessionId);
+   const players = await getParticipant(sessionId);
 
    if (session.status === 'completed') {
       return {
@@ -119,6 +119,8 @@ export async function getQuizSessionState(sessionId, viewerId) {
    if (!activeQuestion) {
       throw new Error('找不到進行中的題目');
    }
+
+   const result = await getAnswer(sessionId);
 
    // 把這個題目已經顯示的提示帶出來 -> hint order < hint_revealed
    const {data: currentShowedHints, error: currentHintError} = await supabaseAdmin
@@ -164,6 +166,7 @@ export async function getQuizSessionState(sessionId, viewerId) {
    return {
       session_id: session.id,
       status: session.status,
+      room_mode: session.room_mode,
       quiz_mode: quizMode,
       question_count: session.question_count,
       players: players,
@@ -176,6 +179,7 @@ export async function getQuizSessionState(sessionId, viewerId) {
          available_score: activeQuestion.score,
          is_correct: activeQuestion.is_correct,
          hints: currentShowedHints,
+         revealed_answer: result.answer
       },
       
       viewer_name: viewer.nickname,
@@ -433,8 +437,7 @@ export async function revealNextHint(sessionId) {
    if (sessionQuestions.hints_revealed >= 5) {
       return {
          hint: null,
-         hints_revealed: sessionQuestions.hints_revealed,
-         phase: 'awaiting_next_question',
+         hints_revealed: sessionQuestions.hints_revealed,         
          available_score: sessionQuestions.score,
          total_hints: 5,
          has_next_hint: false,
@@ -530,20 +533,12 @@ async function getCurrentTotalScore(sessionId) {
    return currentTotalScore;
 }
 
-export async function checkQuizAnswer(sessionId, userAnswer) {
+export async function checkQuizAnswer(sessionId, userAnswer, attemptId, userId) {
    const {data: sessionQuestions, error: sessionQuestionsError} = await supabaseAdmin
       .from('quiz_session_questions')
-      .select(`
-         session_id,
-         question_id,
-         question_order,
-         hints_revealed,
-         status,
-         score,
-         is_correct
-      `)
+      .select(`*`)
       .eq('session_id', sessionId)
-      .eq('status', 'active')
+      .eq('status', 'active')      
       .single();
       
    if (sessionQuestionsError) {
@@ -553,6 +548,10 @@ export async function checkQuizAnswer(sessionId, userAnswer) {
 
    if (!sessionQuestions) {
       throw new Error('找不到進行中的題目');
+   }
+
+   if (sessionQuestions.phase !== 'awaiting_judgement') {      
+      throw new Error('題目還沒進入裁定階段，無法提交答案');
    }
 
    // 已經答對的題目不能重複取得分數。
@@ -565,48 +564,65 @@ export async function checkQuizAnswer(sessionId, userAnswer) {
          already_answered: true,
       };
    }
-
+   
    // quizAnswer.js 只負責依 question_id 比對角色名稱與 aliases。
    const isCorrect = await checkAnswer(sessionQuestions.question_id, userAnswer);
    
-   // 好像不用 update score，因為在揭露提示的時候就已經更新 score 了
+   // 更新 userAttempt
+   const {data: updateAttempt, error: updateAttemptError} = await supabaseAdmin
+      .from('quiz_user_attempt')
+      .update({
+         status: isCorrect ? 'correct' : 'incorrect', 
+         score: isCorrect ? sessionQuestions.score : 0,
+         scorer: isCorrect ? sessionQuestions.current_player_id : null,
+      })
+      .eq('id', attemptId)
+      .eq('session_id', sessionQuestions.session_id)
+      .eq('question_id', sessionQuestions.question_id)
+      .eq('user_id', userId)
+      .eq('answer_round', sessionQuestions.answer_round)
+      .eq('status', 'pending')
+      .select()
+      .maybeSingle();      
+   
+   if (updateAttemptError) {      
+      throw updateAttemptError;
+   }
+
+   if (!updateAttempt) {      
+      throw new Error('找不到使用者嘗試紀錄，請稍後再試');
+   }
+
+   const nextPhase = isCorrect || sessionQuestions.hints_revealed >= 5 ? 'awaiting_next_question' : 'awaiting_answer';
+   // 更新 question 狀態
    const {data: updatedQuestion, error: updateQuestionError} = await supabaseAdmin
       .from('quiz_session_questions')
       .update({
          user_answer: userAnswer.trim(),
          is_correct: isCorrect,
+         phase: nextPhase,
       })
       .eq('session_id', sessionQuestions.session_id)
       .eq('question_id', sessionQuestions.question_id)
-      .eq('status', 'active')      
+      .eq('status', 'active')
+      .eq('phase', 'awaiting_judgement')
+      .eq('current_player_id', userId)
+      .eq('answer_round', sessionQuestions.answer_round)
       .select('score, is_correct')
       .single();
 
-   if (updateQuestionError) {
+   if (updateQuestionError) {      
       throw updateQuestionError;
-   }
+   }   
 
-   const {error: updateActivityError} = await supabaseAdmin
-      .from('quiz_sessions')
-      .update({last_activity: new Date().toISOString()})
-      .eq('id', sessionId);
-
-   if (updateActivityError) {
-      throw updateActivityError;
-   }
-
-   const currentTotalScore = await getCurrentTotalScore(sessionId);
-
-   return {
-      current_total_score: currentTotalScore,
+   return {      
       question_order: sessionQuestions.question_order,
       is_correct: updatedQuestion.is_correct,
       score: updatedQuestion.is_correct
          ? updatedQuestion.score
          : 0,
       available_score: updatedQuestion.score,
-      already_answered: false,
-      is_last_question: sessionQuestions.question_order === sessionQuestions.question_count,
+      already_answered: false,      
    };
 }
 
@@ -826,7 +842,7 @@ export async function userSubmitAnswer(session_id, user_id, question_id, answer,
    // 檢查 session 是否存在且進行中
    const {data: session, error: sessionError} = await supabaseAdmin
       .from('quiz_sessions')
-      .select('id, status')
+      .select('id, status, room_mode')
       .eq('id', session_id)
       .eq('status', 'in_progress')
       .maybeSingle();
@@ -910,7 +926,10 @@ export async function userSubmitAnswer(session_id, user_id, question_id, answer,
       throw insertAttemptError;
    }
 
-   return insertAttempt;
+   return {
+      attempt: insertAttempt, 
+      room_mode: session.room_mode
+   };
 }
 
 export async function advanceToNextQuestion(session_id, user_id, expected_current_question_order, action) {
@@ -973,7 +992,7 @@ export async function markAsIncorrect(session_id, question_id, attempt_id) {
    
 
    // 3. 取得固定玩家順序
-   const players = await getRoomPlayers(session_id);
+   const players = await getParticipant(session_id);
 
    if (players.length === 0) {
       throw fail('房間中沒有參賽玩家');
@@ -1243,7 +1262,7 @@ export async function markAsCorrect(session_id, question_id, attempt_id) {
 
 export async function getQuizResult(session_id) {
    // 這裡不用 .single 因為就是要取得一個 session 裡面的多筆資料
-   const players = await getRoomPlayers(session_id);
+   const players = await getParticipant(session_id);
    const ranking = await getPlayerRanking(session_id, players);
 
    return ranking;

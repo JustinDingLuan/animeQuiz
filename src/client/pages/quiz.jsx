@@ -42,18 +42,15 @@ import PlayerAnswerOrder from '../components/PlayerAnswerOrder.jsx';
 export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameStateChange}) {
   const navigate = useNavigate();
   const isHost = gameState.viewer === 'host';  
+  const isMaster = gameState.room_mode === 'multi' && isHost;
   
-  // const [roomState, setRoomState] = useState(null);
-  // const [loadError, setLoadError] = useState('');
-  // const activeQuizMode = roomState?.quiz_mode ?? quizMode;
-  // const activeQuestionCount = roomState?.question_count ?? questionCount;
   // 現在會把第一個題目帶進來，可以直接初始化
   const firstQuestion = gameState?.current_question;
   const [sessionId, setSessionId] = useState(roomSessionId);
   const [question, setQuestion] = useState(firstQuestion ?? null);
   // questionCount 在建立 session 的時候就固定了，不用去更動他
   const [visibleHintCount, setVisibleHintCount] = useState(firstQuestion?.hints_revealed ?? 0);
-  // const [answered, setAnswered] = useState(false);
+  
 
   // const submittingRef = useRef(false);
   // const [isSubmitting, setIsSubmitting] = useState(false);
@@ -62,11 +59,9 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
   // const actionLock = useRef(false);
   // const [pendingAction, setPendingAction] = useState(null);
   // const isBusy = pendingAction !== null;
-  const { runAction: quizAction, pendingAction, isBusy } = useAction();
+  const { runAction: quizAction, pendingAction, isBusy } = useAction();  
+  const [isCorrect, setIsCorrect] = useState(false);  
   
-  const [isCorrect, setIsCorrect] = useState(false);
-  // const [currentScore, setCurrentScore] = useState(0);
-  // 
   const [hints, setHints] = useState(firstQuestion?.hints ?? []);
   const [userAnswer, setUserAnswer] = useState('');
   const [resultMessage, setResultMessage] = useState('');
@@ -94,8 +89,7 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
     setQuestion(currentQuestion);
     setVisibleHintCount(currentQuestion.hints_revealed);
     setHints(currentQuestion.hints ?? []);
-    setHasNextHint(currentQuestion.hints_revealed < 5);
-    // setCurrentScore(gameState.current_total_score ?? 0);
+    setHasNextHint(currentQuestion.hints_revealed < 5);    
     setHasNextQuestion(gameState.question_count > 0);
     setIsCorrect(currentQuestion.is_correct === true);
 
@@ -103,6 +97,10 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
       setUserAnswer('');
       setResultMessage('');
       setHasNextQuestion(true);
+    }
+
+    if (gameState.phase === 'awaiting_next_question') {
+      setResultMessage(`本題預設答案: ${currentQuestion.revealed_answer}`);
     }
 
     previousQuestionId.current = currentQuestion.question_id;
@@ -113,7 +111,7 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
   useEffect(() => {
     let isActive = true;
     async function loadAnswer() {
-      if (!isHost || !questionId || !sessionId) {
+      if (!isMaster || !questionId || !sessionId) {
         return;
       }
 
@@ -218,9 +216,18 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
       try {
         await quizAction('submitQuizAnswer', async () => {
           const result = await requestSubmitAnswer(sessionId, question.question_id, normalizedUserAnswer, gameState.answer_round);        
-          console.log(`等待主持人確認答案是否正確...`);
+          // console.log(`等待主持人確認答案是否正確...`);
           onGameStateChange(result);
           setUserAnswer('');
+
+          if (result.judgement) {
+            setResultMessage(result.judgement.is_correct 
+              ? `回答正確！獲得 ${result.judgement.score} 分` 
+              : `回答錯誤！目前仍可獲得 ${result.judgement.available_score} 分`);
+          }
+          else {
+            setResultMessage(`等待主持人裁定答案是否正確`);
+          }
           // if (result.is_correct) {
           //   setIsCorrect(true);
           //   setResultMessage(`回答正確！獲得 ${result.score} 分`);
@@ -414,7 +421,10 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
         )}
 
         {gameState.phase === 'awaiting_judgement' && (
-          <p>等待房主裁定答案是否正確</p>
+          <p>
+            {gameState.game_mode === 'solo' ? '等待電腦裁定答案是否正確' : '等待房主裁定答案是否正確'}
+            <LoadingDots />
+          </p>
         )}
 
         <div className="quiz-player-panels">
@@ -434,7 +444,7 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
           </aside>
         </div>
 
-        {isHost && (
+        {isMaster && (
           <section className="quiz-answer">
             <p>可接受答案：<strong>{answer.join(', ')}</strong></p>
           </section>
@@ -463,14 +473,14 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
           ))}
           </ol>
 
-          <button
+          {isHost && (<button
             className="quiz-button quiz-button-hint"
             type="button"
             onClick={showNextHint}
-            disabled={isBusy || !hasNextHint || !isHost}
+            disabled={isBusy || !hasNextHint}
           >
             {hasNextHint ? '撕開下一個提示' : '提示已全部揭露'}
-          </button>
+          </button>)}
         </section>
 
         <form className="quiz-answer-card" onSubmit={submitQuizAnswer}>
@@ -503,7 +513,7 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
         </p>
         
         <div className="quiz-footer-action">
-          {isHost && (
+          {isMaster && (
             <button 
             className="quiz-button quiz-button-primary" 
             type="button" 
@@ -514,7 +524,7 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
             </button>
           )}
           
-          {isHost && (            
+          {isMaster && (            
             <button 
               className="quiz-button quiz-button-primary" 
               type="button" 
@@ -528,7 +538,7 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
 
         {isHost && (
           <div className="quiz-footer-action">
-            {isCorrect ? (
+            {gameState.phase === 'awaiting_next_question' ? (
               <button
                 className="quiz-button quiz-button-primary"
                 type="button"

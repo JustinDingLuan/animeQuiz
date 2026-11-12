@@ -1,6 +1,6 @@
 import { supabaseAdmin } from './databaseAdmin.js';
-import {getQuizMode} from '../shared_items/quizConfig.js';
-import { getRoomPlayers } from './roomPlayers.js';
+import { getQuizMode } from '../shared_items/quizConfig.js';
+import { getRoomPlayers, getParticipant } from './roomPlayers.js';
 
 export async function getLobbyInfo(sessionId) {
    const { data, error:sessionError } = await supabaseAdmin
@@ -32,7 +32,7 @@ export async function getLobbyInfo(sessionId) {
    return {
       ...data,
       playerCount: count ?? 0,
-      players: await getRoomPlayers(sessionId),
+      players: await getParticipant(sessionId),
    }
 }
 
@@ -101,8 +101,11 @@ export async function startGame({sessionId, quizMode, questionCount}) {
    const selectedQuestions = shuffledQuestions.slice(0, normlalizedQuestionCount);
    
    // 決定每題預設回答的玩家是誰
-   const players = await getRoomPlayers(sessionId);
+   const players = await getParticipant(sessionId);   
    const playerCount = players.length;
+   if (playerCount === 0) {      
+      throw new Error('房間沒有參與者，無法開始遊戲');
+   }
 
    const quizSessionRow = selectedQuestions.map((question, index) => {
       const isFirstQuestion = index === 0;
@@ -139,7 +142,7 @@ export async function startGame({sessionId, quizMode, questionCount}) {
    const { error: updateError } = await supabaseAdmin
       .from('quiz_sessions')
       .update({ 
-         status: 'in_progress', 
+         status: 'in_progress',
          question_type: selectMode.question_type, 
          answer_type: selectMode.answer_type,
          question_count: normlalizedQuestionCount,

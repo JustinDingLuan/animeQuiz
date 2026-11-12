@@ -1,22 +1,23 @@
 import { supabaseAdmin } from './databaseAdmin.js';
 
-export async function createRoom({user_id, nickname, roomCapacity}) {
+export async function createRoom({user_id, nickname, roomCapacity, roomMode}) {
    // 變數名稱必須跟寫 rpc 的時候一模一樣
-   const { data:roomInfo, error } = await supabaseAdmin.rpc('create_host_room', {
-      p_nickname: nickname,
+   const { data:roomInfo, error } = await supabaseAdmin.rpc('create_room', {
       p_user_id: user_id,
+      p_nickname: nickname,     
       p_room_capacity: roomCapacity,
+      p_room_mode: roomMode,
    });
 
    const sessionId = roomInfo?.session_id;
    const roomCode = roomInfo?.room_code;
-   const role = roomInfo?.role;
+   const role = roomInfo?.role;   
    
    if (error) {
       throw error;
    }
 
-   console.log('createRoom - sessionId:', sessionId, 'roomCode:', roomCode, 'role:', role);
+   console.log('createRoom - sessionId:', sessionId, 'roomCode:', roomCode, 'role:', role, 'roomCapacity:', roomCapacity, 'roomMode:', roomMode);
    if (!sessionId || !roomCode || !role) {
       throw new Error('無法取得 sessionId、roomCode 或 role');
    }

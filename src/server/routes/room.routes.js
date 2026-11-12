@@ -25,6 +25,7 @@ router.post(
    async (request, response) => {
       const nickname = request.body?.nickname;
       const roomCapacity = request.body?.roomCapacity;
+      const roomMode = request.body?.roomMode;
 
       // if (nickname === null || nickname === undefined) {
       //    nickname = 'host';
@@ -34,7 +35,8 @@ router.post(
          const { sessionId, roomCode, role } = await createRoom({
             user_id: request.user.id,
             nickname,
-            roomCapacity
+            roomCapacity,
+            roomMode
          });
          return response.status(201).json({ sessionId, roomCode, role });
       }
@@ -73,6 +75,7 @@ router.post(
             roomCode,
             nickname
          });
+         // const state = await getLobbyInfo(sessionId);
          return response.status(200).json({ sessionId, role });
       }
       catch (error) {

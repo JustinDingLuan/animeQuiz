@@ -62,75 +62,6 @@ router.post(
    }
 );
 
-// router.post(
-//    '/create-quiz-session',  
-//    async (request, response) => {
-//       const { quizMode, questionCount } = request.body;
-      
-//       try {
-//          const quizSession = await createQuizSession(
-//             quizMode,
-//             questionCount
-//          );
-
-//          return response.status(201).json(quizSession);
-//       } 
-//       catch (error) {
-//          console.error(
-//          '建立測驗失敗：',
-//          error
-//          );
-
-//          return response.status(500).json({
-//          message: '建立測驗失敗',
-//          });
-//       }
-//    }
-// );
-
-// router.post(
-//    '/rooms/:sessionId/start-game',
-//    requireAuth,
-//    async (request, response) => {
-//       const { sessionId } = request.params;
-//       // request.user.id 是 id value 不是物件
-//       const userId = request.user.id;
-//       const { quizMode, questionCount } = request.body;
-
-//       if (!sessionId || !quizMode || !questionCount) {
-//          return response.status(400).json({
-//          message: '缺少 sessionId、quizMode 或 questionCount',
-//          });
-//       }
-
-//       if (!userId) {
-//          return response.status(400).json({
-//          message: '缺少 userId',
-//          });
-//       }
-
-//       try {
-//          const quizSession = await startQuizSession(
-//             sessionId,
-//             userId,
-//             quizMode,
-//             questionCount
-//          );
-
-//          return response.status(201).json(quizSession);
-//       } 
-//       catch (error) {
-//          console.error(
-//          '建立測驗失敗：',
-//          error
-//          );
-
-//          return response.status(500).json({
-//          message: '建立測驗失敗',
-//          });
-//       }
-//    }
-// );
 
 router.post(
    '/quiz-session/:sessionId/reveal-next-hint',
@@ -273,8 +204,14 @@ router.post(
 
       try {
          const result = await userSubmitAnswer(sessionId, userId, questionId, userAnswer, answerRound);
+
+         let judgement = null;
+         if (result.room_mode === 'solo') {
+            judgement = await checkQuizAnswer(sessionId, userAnswer, result.attempt.id, userId);
+         }
+
          const state = await getQuizSessionState(sessionId, userId);
-         return response.status(200).json({...state, viewer: role, viewer_id: userId, result: result});
+         return response.status(200).json({...state, viewer: role, viewer_id: userId, result: result, judgement: judgement});
       }
       catch (error) {
          console.error(

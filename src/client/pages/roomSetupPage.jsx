@@ -88,7 +88,7 @@ function SelectGameMode({mode, players, onChange, onConfirm}) {
                   <label htmlFor="mode">遊戲模式：</label>
                   <div className="select-control">
                      <select className="setup-select" name="mode" value={mode} onChange={(e) => onChange(e.target.value)}>                     
-                     <option value={'host'}>多人互動模式</option>
+                     <option value={'multi'}>多人互動模式</option>
                   </select>
                </div>
 
@@ -106,7 +106,7 @@ function SelectGameMode({mode, players, onChange, onConfirm}) {
                   <label htmlFor="mode">遊戲模式：</label>
                   <div className="select-control">
                      <select className="setup-select" name="mode" value={mode} onChange={(e) => onChange(e.target.value)}>                     
-                     <option value={'auto'}>單人電腦判定模式</option>
+                     <option value={'solo'}>單人電腦判定模式</option>
                   </select>
                </div>
 
@@ -188,8 +188,8 @@ function Lobby({sessionId, roomCode, myRole, nickname, players, onBack}) {
 
             setLobbyInfo(result);
             // console.log('lobby info:', result);
-            // 如果身分是 player，且遊戲已經開始了，就導向到遊戲頁面
-            if (myRole === 'player' && result.status === 'in_progress') {               
+            
+            if (result.status === 'in_progress') {               
                navigate(`/game/${sessionIdEncoded}`);
             }
            
@@ -269,7 +269,7 @@ function Lobby({sessionId, roomCode, myRole, nickname, players, onBack}) {
 export default function RoomSetupPage() {   
    const [screen, setScreen] = useState('menu');
    const [playerCount, setPlayerCount] = useState(1);
-   const [roomMode, setRoomMode] = useState('auto');
+   const [roomMode, setRoomMode] = useState('solo');
    const [roomCode, setRoomCode] = useState('');
    const [mode, setMode] = useState('create');
    const [nickname, setnickname] = useState('');
@@ -279,6 +279,7 @@ export default function RoomSetupPage() {
    const {runAction, pendingAction, isBusy} = useAction();
 
    function handlePlayerCount() {
+      setRoomMode(playerCount === 1 ? 'solo' : 'multi');
       setScreen('select-game-mode');
    }
 
@@ -303,7 +304,7 @@ export default function RoomSetupPage() {
                headers: {
                   'Authorization': `Bearer ${user_session.access_token}`,
                },
-               body: { nickname: nickname, roomCapacity: playerCount },
+               body: { nickname: nickname, roomCapacity: playerCount, roomMode: roomMode },
             });
 
             setRoom({
