@@ -222,17 +222,20 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
 
           if (result.judgement) {
             setResultMessage(result.judgement.is_correct 
-              ? `回答正確！獲得 ${result.judgement.score} 分` 
+              ? `恭喜答對！獲得 ${result.judgement.score} 分` 
               : `回答錯誤！目前仍可獲得 ${result.judgement.available_score} 分`);
+              alert(result.judgement.is_correct 
+                ? `恭喜答對！獲得 ${result.judgement.score} 分` 
+                : `回答錯誤！目前仍可獲得 ${result.judgement.available_score} 分`);
           }
           else {
             setResultMessage(`等待主持人裁定答案是否正確`);
           }
           // if (result.is_correct) {
           //   setIsCorrect(true);
-          //   setResultMessage(`回答正確！獲得 ${result.score} 分`);
+          //   setResultMessage(`恭喜答對！獲得 ${result.score} 分`);
           //   setCurrentScore(result.current_total_score);
-          // console.log(`回答正確！獲得 ${result.score} 分`);
+          // console.log(`恭喜答對！獲得 ${result.score} 分`);
          
         // else {        
         //   setResultMessage(`回答錯誤！目前答對可獲得 ${result.available_score} 分`);
@@ -321,6 +324,7 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
         const result = await requestMarkAsIncorrect(sessionId, question.question_id, pendingAnswer.id);
         onGameStateChange(result);
         setResultMessage(`回答錯誤! 輪到下一位玩家回答`);
+        alert(`回答錯誤! 輪到下一位玩家回答`);
         // if (result.game_over) {
         //   setHasNextQuestion(false);
         //   console.log('已經沒有下一題了');
@@ -359,7 +363,8 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
       await quizAction('markAsCorrect', async () => {
         const result = await requestMarkAsCorrect(sessionId, question.question_id, pendingAnswer.id);
         onGameStateChange(result);
-        setResultMessage(`回答正確！獲得 ${result.current_question.available_score} 分`);
+        setResultMessage(`恭喜答對！獲得 ${result.current_question.available_score} 分`);
+        alert(`恭喜答對！獲得 ${result.current_question.available_score} 分`);
       });
     }
     catch (error) {
