@@ -15,6 +15,10 @@ import {
    getUserRole
 } from '../auth.js';
 
+import { 
+   notifyLobbyChanged 
+} from '../notification.js';
+
 const router = Router();
 
 router.post(
@@ -37,7 +41,7 @@ router.post(
             nickname,
             roomCapacity,
             roomMode
-         });
+         });         
          return response.status(201).json({ sessionId, roomCode, role });
       }
       catch (error) {
@@ -75,7 +79,13 @@ router.post(
             roomCode,
             nickname
          });
-         // const state = await getLobbyInfo(sessionId);
+         try {
+            await notifyLobbyChanged(sessionId);
+         }
+         catch (error) {
+            // 加入已成功；通知失敗不應讓使用者誤以為加入失敗。
+            console.error('通知大廳更新失敗：', error);
+         }
          return response.status(200).json({ sessionId, role });
       }
       catch (error) {
@@ -147,10 +157,9 @@ router.post(
          }
 
          // 開始遊戲的邏輯
-         // 這邊可以透過 rpc 或是直接更新資料庫的方式來改變房間狀態為 in_progress
-         // 這邊假設有一個 startGame 函式可以處理這個邏輯         
+         // 這邊可以透過 rpc 或是直接更新資料庫的方式來改變房間狀態為 in_progress         
          await startGame({sessionId, quizMode, questionCount});
-
+         await notifyLobbyChanged(sessionId);
          return response.status(200).json({
             message: '遊戲已開始',
          });

@@ -41,9 +41,9 @@ export async function getParticipant(sessionId) {
    }      
 
    const {data: participant, error: participantError} = await query.order('answer_order', { ascending: true });
-   // if (participantError) {      
-   //    throw new Error(`取得房間參與者資訊失敗：${participantError.message}`);
-   // }
+   if (participantError) {
+      throw new Error(`取得房間參與者資訊失敗：${participantError.message}`);
+   }
 
    // if (!participant || participant.length === 0) {      
    //    throw new Error('房間沒有參與者');

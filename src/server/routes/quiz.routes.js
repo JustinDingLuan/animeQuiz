@@ -16,8 +16,40 @@ import {
    getAnswer
 } from '../quizAnswer.js';
 
+import {
+   notifyQuizChanged,
+} from '../notification.js';
+
 
 const router = Router();
+
+router.post(
+   '/quiz-session/:sessionId/buzz',
+   requireAuth,
+   async (request, response) => {
+      const { sessionId } = request.params;
+
+
+      const userId = request.user.id;
+      const role = await getUserRole(sessionId, userId);
+      if (!role) {
+         return response.status(403).json({
+         message: '只有該房間的玩家可以進行此操作',
+         });
+      }
+
+      try {
+         const result = await buzz();
+         const state = await getQuizSessionState(sessionId, userId);
+         await notifyQuizChanged(sessionId);
+
+         return response.status(200).json({...state, viewer: role, viewer_id: userId, result: result});
+      }
+      catch (error) {
+         
+      }
+   }
+)
 
 router.post(
    '/quiz-session/:sessionId/check-quiz-answer',
@@ -46,7 +78,8 @@ router.post(
          // 拿到後端 給出的結果以後，把結果用 json 的形式回傳給前端
          // 前端接收到這個 json result 可以去更新畫面
          const result = await checkQuizAnswer(sessionId, userAnswer);
-         
+         await notifyQuizChanged(sessionId);
+
          return response.status(200).json(result);
       } 
       catch (error) {
@@ -86,6 +119,8 @@ router.post(
       try {
          const result = await revealNextHint(sessionId);
          const state = await getQuizSessionState(sessionId, userId);
+         await notifyQuizChanged(sessionId);
+
          return response.status(200).json({...state, viewer: role, viewer_id: userId, result: result});
       } 
       catch (error) {
@@ -126,6 +161,8 @@ router.post(
          const question_order = request.body.question_order || null; // 如果前端沒有傳 question_order，就設為 null
          const result = await advanceToNextQuestion(sessionId, userId, question_order, 'answered'); 
          const state = await getQuizSessionState(sessionId, userId);
+         await notifyQuizChanged(sessionId);
+
          return response.status(200).json({...state, viewer: role, viewer_id: userId, result: result});
       }
       catch (error) {
@@ -163,9 +200,11 @@ router.post(
       }
 
       try {
-         const question_order = request.body.question_order || null; // 如果前端沒有傳 question_order，就設為 null
+         const question_order = request.body.question_order || null;
          const result = await advanceToNextQuestion(sessionId, userId, question_order, 'skipped');
          const state = await getQuizSessionState(sessionId, userId);
+         await notifyQuizChanged(sessionId);
+
          return response.status(200).json({...state, viewer: role, viewer_id: userId, result: result});
       }
       catch (error) {
@@ -211,6 +250,8 @@ router.post(
          }
 
          const state = await getQuizSessionState(sessionId, userId);
+         await notifyQuizChanged(sessionId);
+
          return response.status(200).json({...state, viewer: role, viewer_id: userId, result: result, judgement: judgement});
       }
       catch (error) {
@@ -253,8 +294,9 @@ router.post(
       }
 
       try {
-         await markAsIncorrect(sessionId, questionId, attemptId);
+         const judgement = await markAsIncorrect(sessionId, questionId, attemptId);
          const state = await getQuizSessionState(sessionId, userId);
+         await notifyQuizChanged(sessionId, judgement);
 
          return response.status(200).json({...state, viewer: role, viewer_id: userId});
       }
@@ -298,8 +340,9 @@ router.post(
       }
 
       try {
-         await markAsCorrect(sessionId, questionId, attemptId);
+         const judgement = await markAsCorrect(sessionId, questionId, attemptId);
          const state = await getQuizSessionState(sessionId, userId);
+         await notifyQuizChanged(sessionId, judgement);
 
          return response.status(200).json({...state, viewer: role, viewer_id: userId});
       }

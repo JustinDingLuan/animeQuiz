@@ -220,17 +220,12 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
           onGameStateChange(result);
           setUserAnswer('');
 
-          if (result.judgement) {
-            setResultMessage(result.judgement.is_correct 
-              ? `恭喜答對！獲得 ${result.judgement.score} 分` 
-              : `回答錯誤！目前仍可獲得 ${result.judgement.available_score} 分`);
-              alert(result.judgement.is_correct 
-                ? `恭喜答對！獲得 ${result.judgement.score} 分` 
-                : `回答錯誤！目前仍可獲得 ${result.judgement.available_score} 分`);
-          }
-          else {
-            setResultMessage(`等待主持人裁定答案是否正確`);
-          }
+          // if (result.judgement) {
+          //   alert(result.judgement.is_correct 
+          //     ? `恭喜答對！獲得 ${result.judgement.score} 分` 
+          //     : `回答錯誤！目前仍可獲得 ${result.judgement.available_score} 分`);
+          // }
+          
           // if (result.is_correct) {
           //   setIsCorrect(true);
           //   setResultMessage(`恭喜答對！獲得 ${result.score} 分`);
@@ -322,9 +317,7 @@ export function Quiz({quizMode, questionCount, roomSessionId, gameState, onGameS
     try {
       await quizAction('markAsIncorrect', async () => {
         const result = await requestMarkAsIncorrect(sessionId, question.question_id, pendingAnswer.id);
-        onGameStateChange(result);
-        setResultMessage(`回答錯誤! 輪到下一位玩家回答`);
-        alert(`回答錯誤! 輪到下一位玩家回答`);
+        onGameStateChange(result);                
         // if (result.game_over) {
         //   setHasNextQuestion(false);
         //   console.log('已經沒有下一題了');

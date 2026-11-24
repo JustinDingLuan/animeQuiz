@@ -162,56 +162,57 @@ function RoomEntry({mode, nickname, roomCode, errorMessage, onnicknameChange, on
    );
 }
 
-function Lobby({sessionId, roomCode, myRole, nickname, players, onBack}) {
+function Lobby({sessionId, roomCode, myRole, nickname, onBack}) {
    const navigate = useNavigate();
    const [lobbyInfo, setLobbyInfo] = useState(null);
+   const [lobbyError, setLobbyError] = useState(null);   
    const [isStarting, setIsStarting] = useState(false);
 
    useEffect(() => {
       let isActive = true;
-      let timeoutId = null;
+      const sessionIdEncoded = encodeURIComponent(sessionId);
 
-      async function pollLobby() {
+      async function refreshLobbyInfo() {
          try {
-            const user_session = await ensureAuthSession();
-            if (!user_session) {
-               throw new Error('無法取得使用者 session');
-            }
-            const sessionIdEncoded = encodeURIComponent(sessionId);
             const result = await apiRequest(`/api/${sessionIdEncoded}/lobbyInfo`, {
                method: 'GET',
-               headers: {
-                  'Authorization': `Bearer ${user_session.access_token}`,
-               },
-            });            
+            });
             if (!isActive) return;
-
+            console.log('取得房間資訊：', result);
             setLobbyInfo(result);
-            // console.log('lobby info:', result);
-            
-            if (result.status === 'in_progress') {               
+
+            if (result.status === 'in_progress') {
                navigate(`/game/${sessionIdEncoded}`);
             }
-           
          }
          catch (error) {
             if (!isActive) return;
-            console.error('取得房間資訊失敗：', error);
+            setLobbyError(`取得房間資訊失敗：${error.message}`);
+            console.error('取得房間資訊失敗：', error);            
          }
-         
-         // 如果還沒開始遊戲(isActive)，每兩秒更新一次大廳狀態
-         if (isActive) {
-            timeoutId = setTimeout(pollLobby, 2000);
-         }
-      }
+      }      
 
-      pollLobby();
+      const channel = supabase.channel(`lobby:${sessionId}`, {
+         config: { private: true },         
+      })
+      .on('broadcast', { event: 'lobby_changed' }, () => {
+         refreshLobbyInfo();
+      })
+      .subscribe((status, error) => {
+         if (error) {
+            console.error('訂閱大廳更新失敗：', error);
+         }
+
+         if (status === 'SUBSCRIBED') {
+            refreshLobbyInfo();
+         }
+      });
+
       return () => {
-         // 如果已經結束了，就不要再更新大廳狀態了 -> 把 timeout 清掉
-         isActive = false;
-         clearTimeout(timeoutId);
+         isActive = false;         
+         supabase.removeChannel(channel);
       };
-   }, [sessionId]);
+   }, [sessionId, navigate]);
 
    async function handleStartGame({ quizMode, questionCount }) {
       if (myRole !== 'host') {
@@ -231,6 +232,7 @@ function Lobby({sessionId, roomCode, myRole, nickname, players, onBack}) {
          });
 
          const sessionIdEncoded = encodeURIComponent(sessionId);
+         // 先告知開始遊戲，然後跳轉畫面         
          navigate(`/game/${sessionIdEncoded}`);
       }
       catch (error) {
@@ -249,11 +251,11 @@ function Lobby({sessionId, roomCode, myRole, nickname, players, onBack}) {
             <section className="auth-card">
                <div className="setup-form">
                   <h2 className="setup-title">房間資訊</h2>
-                  <p>房間代碼：{lobbyInfo?.room_code}</p>
+                  <p>房間代碼：{lobbyInfo?.room_code ?? roomCode}</p>
                   <p>你的角色：{myRole}</p>
-                  <p>你的名稱：{nickname}</p>
-                  <p>已加入玩家人數：{lobbyInfo?.playerCount}/{lobbyInfo?.room_capacity}</p>
-                  {lobbyInfo && <PlayerAnswerOrder players={lobbyInfo.players} />}
+                  <p>你的名稱：{nickname}</p>                  
+                  <p>已加入玩家人數：{lobbyInfo ? `${lobbyInfo.playerCount}/${lobbyInfo.room_capacity}` : '無法取得'}</p>
+                  {lobbyInfo && <PlayerAnswerOrder players={lobbyInfo.players ?? []} />}
                   <p>等待其他玩家加入<LoadingDots /></p>
                   
                {myRole === 'host' && (                  
@@ -329,8 +331,7 @@ export default function RoomSetupPage() {
             const user_session = await ensureAuthSession();
             if (!user_session) {
                throw new Error('無法取得使用者 session');
-            }
-            // console.log('目前使用者 id:', user_session?.user?.id);
+            }            
 
             const result = await apiRequest('/api/join-room', {
                method: 'POST',
@@ -342,16 +343,14 @@ export default function RoomSetupPage() {
 
             setRoom({
                sessionId: result.sessionId,
-               roomCode: result.roomCode,
+               roomCode: result.roomCode ?? roomCode,
                myRole: result.role,
             });
             setScreen('lobby');
          });
       }
-      catch (error) {
-         setErrorMessage(`${error.message}`);
-         console.error('加入房間失敗：', error);
-         // alert(`加入房間失敗：${error.message}`);
+      catch (error) {                  
+         alert(`加入房間失敗：${error.message}`);
       }
    }
 
@@ -408,7 +407,6 @@ export default function RoomSetupPage() {
                roomCode={room.roomCode} 
                myRole={room.myRole}
                nickname={nickname}
-               players={playerCount} 
                onBack={() => setScreen('menu')}
             />)
          }         
