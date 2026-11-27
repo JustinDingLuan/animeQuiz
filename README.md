@@ -145,3 +145,10 @@ server 只會用在 dev command 的時候
 ## 20261124
 目前修改內容:
 - 透過 supabase realtime 改成有動作才通知畫面更新，讓玩家同步畫面。目前做到 lobby 部分 (O)
+
+## 20261127
+後續追加目標: 熟悉 git 流程 -> 熟悉 CI/CD 流程
+- 開新 branch: buzzer
+- 開發完以後發 pull request
+- 讓 AI 測試 lint/test/build
+- git merge
